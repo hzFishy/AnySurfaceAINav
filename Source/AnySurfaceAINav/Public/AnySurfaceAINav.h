@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// By hzFishy - 2026 - Do whatever you want with it.
 
 #pragma once
 
@@ -6,9 +6,8 @@
 
 class FAnySurfaceAINavModule : public IModuleInterface
 {
+	
 public:
-
-	/** IModuleInterface implementation */
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 };
