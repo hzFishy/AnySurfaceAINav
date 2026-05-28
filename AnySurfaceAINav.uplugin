@@ -1,0 +1,23 @@
+﻿{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "AnySurfaceAINav",
+	"Description": "",
+	"Category": "Other",
+	"CreatedBy": "hzFishy",
+	"CreatedByURL": "https://hzfishy.fr",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": false,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "AnySurfaceAINav",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
