@@ -16,7 +16,8 @@ public class AnySurfaceAINav : ModuleRules
 		PrivateDependencyModuleNames.AddRange(new string[] 
 		{
 			"CoreUObject", "Engine", 
-			"Slate", "SlateCore"
+			"Slate", "SlateCore",
+			"AIModule"
 		});
 	}
 }

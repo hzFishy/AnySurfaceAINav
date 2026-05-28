@@ -1,22 +1,23 @@
-﻿// Copyright Iron City Dev Team. All Rights Reserved.
+﻿// By hzFishy - 2026 - Do whatever you want with it.
 
 #pragma once
 
 #include "Components/StaticMeshComponent.h"
-#include "SANTestPrimitiveComponent.generated.h"
+#include "SANTestStaticMeshComponent.generated.h"
 
 
-UCLASS(ClassGroup=(Custom), meta=(BlueprintSpawnableComponent))
-class ANYSURFACEAINAV_API USANTestPrimitiveComponent : public UStaticMeshComponent
+UCLASS(ClassGroup="AnySurfaceAINav", meta=(BlueprintSpawnableComponent))
+class ANYSURFACEAINAV_API USANTestStaticMeshComponent : public UStaticMeshComponent
 {
 	GENERATED_BODY()
 
 public:
-	USANTestPrimitiveComponent();
+	USANTestStaticMeshComponent();
 	
 protected:
 	virtual void BeginPlay() override;
 	
+public:
 	virtual bool IsNavigationRelevant() const override;
 	
 	virtual FBox GetNavigationBounds() const override;
