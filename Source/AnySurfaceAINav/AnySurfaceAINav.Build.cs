@@ -17,7 +17,9 @@ public class AnySurfaceAINav : ModuleRules
 		{
 			"CoreUObject", "Engine", 
 			"Slate", "SlateCore",
-			"AIModule"
+			"AIModule", "NavigationSystem",
+			"DeveloperSettings",
+			"FishyUtils", "Nav3D"
 		});
 	}
 }
