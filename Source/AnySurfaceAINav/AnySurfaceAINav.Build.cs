@@ -10,17 +10,17 @@ public class AnySurfaceAINav : ModuleRules
 		
 		PublicDependencyModuleNames.AddRange(new string[] 
 		{
-			"Core"
+			"Core", "Engine"
 		});
 		
 		PrivateDependencyModuleNames.AddRange(new string[] 
 		{
-			"CoreUObject", "Engine", 
+			"CoreUObject", 
 			"Slate", "SlateCore",
 			"AIModule", "NavigationSystem",
 			"DeveloperSettings",
 			"FishyUtils", 
-			"Nav3D", "CPathfinding"
+			"CPathfinding"
 		});
 	}
 }

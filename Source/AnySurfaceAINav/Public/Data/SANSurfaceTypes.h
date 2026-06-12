@@ -23,9 +23,9 @@ struct ANYSURFACEAINAV_API FSANSurfaceHitResult
 USTRUCT(BlueprintType, DisplayName="SAN Find Path Request")
 struct ANYSURFACEAINAV_API FSANFindPathRequest
 {
-	FSANFindPathRequest();
-	
 	GENERATED_BODY()
+	
+	FSANFindPathRequest();
 	
 	UPROPERTY(BlueprintReadWrite)
 	const UObject* WorldContextObject;

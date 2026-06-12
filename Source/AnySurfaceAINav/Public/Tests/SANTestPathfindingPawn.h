@@ -2,14 +2,16 @@
 
 #pragma once
 
-#include "Data/SANSurfaceTypes.h"
-#include "GameFramework/Pawn.h"
+#include "GameFramework/Actor.h"
 #include "SANTestPathfindingPawn.generated.h"
-class USplineComponent;
 
-// TODO: move movement logic to movement component
+
+/** 
+ *  It is named with "Pawn" but doesn't depend on the APawn class.
+ *  The important part is having a USANCrawlerMovementComponent component which moves a USceneComponent.
+ */
 UCLASS()
-class ANYSURFACEAINAV_API ASANTestPathfindingPawn : public APawn
+class ANYSURFACEAINAV_API ASANTestPathfindingPawn : public AActor
 {
 	GENERATED_BODY()
 
@@ -18,22 +20,11 @@ class ANYSURFACEAINAV_API ASANTestPathfindingPawn : public APawn
 		Properties
 	----------------------------------------------------------------------------*/
 protected:
-	/** cm/s */
-	UPROPERTY(EditAnywhere, Category="SAN")
-	float MovementSpeed;
-	
-	UPROPERTY(EditAnywhere, Category="SAN")
-	float AgentRadius;
+	UPROPERTY(VisibleAnywhere)
+	TObjectPtr<USANCrawlerMovementComponent> MovementComponent;
 	
 	UPROPERTY(EditAnywhere, Category="SAN")
 	TSoftObjectPtr<AActor> DestinationActor;
-	
-	//////////////////////////////////
-	// Runtime
-	bool bProcessRequest;
-	
-	TArray<FVector> CachedPositions;
-	FSANFindPathResult CachedFindPathResult;
 	
 	
 	/*----------------------------------------------------------------------------
@@ -42,20 +33,11 @@ protected:
 public:
 	ASANTestPathfindingPawn();
 	
-	virtual void PostInitializeComponents() override;
-	
-	virtual void BeginPlay() override;
-	
-	virtual void Tick(float DeltaSeconds) override;
-	
 	
 	/*----------------------------------------------------------------------------
 		Core
 	----------------------------------------------------------------------------*/
 public:
+	UFUNCTION(BlueprintCallable, Category="SAN")
 	void TestMoveToAnySurfacePath();
-	
-protected:
-	/** Copy from UActorFactory::FindActorAlignmentRotation */
-	FQuat FindActorAlignmentRotation(const FQuat& InActorRotation, const FVector& InModelAxis, const FVector& InWorldNormal);
 };

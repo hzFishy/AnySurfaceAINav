@@ -2,13 +2,14 @@
 
 #include "Tests/SANTestPathfindingActor.h"
 
+#include "CPathVolume.h"
 #include "Core/SANAnySurfaceNavLibrary.h"
-#include "Data/SANAnySurfaceNavSettings.h"
+#include "Data/SANCore.h"
 #include "Draw/FUDraw.h"
-#include "Pathfinding/Core/Nav3DPathLibrary.h"
+#include "Kismet/GameplayStatics.h"
 
-	
-	/*----------------------------------------------------------------------------
+
+/*----------------------------------------------------------------------------
 		Defaults
 	----------------------------------------------------------------------------*/
 ASANTestPathfindingActor::ASANTestPathfindingActor():
@@ -29,8 +30,21 @@ void ASANTestPathfindingActor::Test3DPathfinding()
 	const FVector StartLocation = GetActorLocation();
 	const FVector EndLocation = DestinationActor->GetActorLocation();
     
-	TArray<FNavPathPoint> Points;
-	UNav3DPathLibrary::FindNav3DPathExtended(GetWorld(), StartLocation, EndLocation, AgentRadius, Points);
+	auto* CPathVolume = Cast<ACPathVolume>(UGameplayStatics::GetActorOfClass(GetWorld(), ACPathVolume::StaticClass()));
+	FCPathResult CPathResult = CPathVolume->FindPathSynchronous(StartLocation, EndLocation,  0, 0, 2);
+	
+#if SAN_WITH_DEBUG
+	for (auto& PathPoint : CPathResult.UserPath)
+	{
+		FU::Draw::DrawDebugSphere(
+			GetWorld(),
+			PathPoint.WorldLocation,
+			20,
+			FColor::Green,
+			10
+		);
+	}
+#endif
 }
 
 void ASANTestPathfindingActor::TestAnySurfacePathfinding()
@@ -47,5 +61,5 @@ void ASANTestPathfindingActor::TestAnySurfacePathfinding()
 	Request.AgentRadius = AgentRadius;
 	
 	FSANFindPathResult Result;
-	USANAnySurfaceNavLibrary::FindAnySurfacePath(Request, Result);
+	USANAnySurfaceNavLibrary::FindAnySurfacePathSync(Request, Result);
 }

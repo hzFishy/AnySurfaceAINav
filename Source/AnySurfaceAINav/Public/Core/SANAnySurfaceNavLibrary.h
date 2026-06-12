@@ -1,4 +1,5 @@
 ﻿// By hzFishy - 2026 - Do whatever you want with it.
+
 #pragma once
 
 #include "Data/SANSurfaceTypes.h"
@@ -14,7 +15,7 @@ class ANYSURFACEAINAV_API USANAnySurfaceNavLibrary : public UBlueprintFunctionLi
 	
 public:
 	UFUNCTION(BlueprintCallable, Category="SAN")
-	static bool FindAnySurfacePath(const FSANFindPathRequest& Request, FSANFindPathResult& Result);
+	static bool FindAnySurfacePathSync(const FSANFindPathRequest& Request, FSANFindPathResult& Result);
 	
 	UFUNCTION(BlueprintPure, Category="SAN")
 	static bool IsPathResultEmpty(const FSANFindPathResult& PathResult);

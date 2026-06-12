@@ -1,10 +1,8 @@
 ﻿// By hzFishy - 2026 - Do whatever you want with it.
 
 #include "Core/SANAnySurfaceNavLibrary.h"
-
 #include "CPathVolume.h"
 #include "Data/SANAnySurfaceNavSettings.h"
-#include "Pathfinding/Core/Nav3DPathLibrary.h"
 #include "Data/SANCore.h"
 #include "Kismet/GameplayStatics.h"
 #if SAN_WITH_DEBUG
@@ -32,7 +30,7 @@ namespace SAN
 
 int32 USANAnySurfaceNavLibrary::FillGapsLoopCount = 0;
 
-bool USANAnySurfaceNavLibrary::FindAnySurfacePath(const FSANFindPathRequest& Request, FSANFindPathResult& Result)
+bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest& Request, FSANFindPathResult& Result)
 {
 	if (!Request.IsValid())
 	{
@@ -45,10 +43,7 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePath(const FSANFindPathRequest& Req
 		return false;
 	}
 	
-	//UNav3DPathLibrary::FindNav3DPathExtended(World, Request.StartLocation, Request.EndLocation, Request.AgentRadius, Result.NavPathPoints);
-	
 	auto* CPathVolume = Cast<ACPathVolume>(UGameplayStatics::GetActorOfClass(World, ACPathVolume::StaticClass()));
-	
 	FCPathResult CPathResult = CPathVolume->FindPathSynchronous(Request.StartLocation, Request.EndLocation,  0, 0, 2);
 	
 	for (auto& CPathNode : CPathResult.UserPath)

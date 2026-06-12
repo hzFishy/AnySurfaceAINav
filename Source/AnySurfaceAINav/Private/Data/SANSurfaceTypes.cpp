@@ -17,6 +17,8 @@ bool FSANSurfaceHitResult::IsValid() const
 
 FSANFindPathRequest::FSANFindPathRequest(): 
 	WorldContextObject(nullptr), 
+	StartLocation(FVector::ZeroVector), 
+	EndLocation(FVector::ZeroVector), 
 	AgentRadius(-1)
 {}
 
