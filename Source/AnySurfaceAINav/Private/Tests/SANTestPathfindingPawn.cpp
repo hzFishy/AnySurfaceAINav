@@ -25,9 +25,6 @@ void ASANTestPathfindingPawn::PostInitializeComponents()
 #if WITH_EDITOR
 	FU_UTILS_EDITOR_RETURN_NOTGAMEWORLD
 #endif
-	
-	PathSplineComponent = FU::Utils::SpawnRuntimeComponentForActor<USplineComponent>(this);
-	PathSplineComponent->ClearSplinePoints(true);
 }
 
 void ASANTestPathfindingPawn::BeginPlay()
@@ -88,10 +85,7 @@ void ASANTestPathfindingPawn::TestMoveToAnySurfacePath()
 		// start move
 		//bProcessRequest = true;
 		CachedFindPathResult = Result;
-		
-		TArray<FVector> Positions;
-		Result.SurfacesToPositions(Positions, AgentRadius);
-		PathSplineComponent->SetSplinePoints(Positions, ESplineCoordinateSpace::World, true);
+		Result.SurfacesToPositions(CachedPositions, AgentRadius);
 	}
 }
 

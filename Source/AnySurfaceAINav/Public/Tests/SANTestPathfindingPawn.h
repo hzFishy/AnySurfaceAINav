@@ -30,11 +30,9 @@ protected:
 	
 	//////////////////////////////////
 	// Runtime
-	UPROPERTY()
-	TObjectPtr<USplineComponent> PathSplineComponent;
-	
 	bool bProcessRequest;
 	
+	TArray<FVector> CachedPositions;
 	FSANFindPathResult CachedFindPathResult;
 	
 	

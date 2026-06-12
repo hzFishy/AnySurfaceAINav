@@ -1,9 +1,12 @@
 ﻿// By hzFishy - 2026 - Do whatever you want with it.
 
 #include "Core/SANAnySurfaceNavLibrary.h"
+
+#include "CPathVolume.h"
 #include "Data/SANAnySurfaceNavSettings.h"
 #include "Pathfinding/Core/Nav3DPathLibrary.h"
 #include "Data/SANCore.h"
+#include "Kismet/GameplayStatics.h"
 #if SAN_WITH_DEBUG
 #include "Draw/FUDraw.h"
 #endif
@@ -42,12 +45,37 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePath(const FSANFindPathRequest& Req
 		return false;
 	}
 	
-	UNav3DPathLibrary::FindNav3DPathExtended(World, Request.StartLocation, Request.EndLocation, Request.AgentRadius, Result.NavPathPoints);
+	//UNav3DPathLibrary::FindNav3DPathExtended(World, Request.StartLocation, Request.EndLocation, Request.AgentRadius, Result.NavPathPoints);
+	
+	auto* CPathVolume = Cast<ACPathVolume>(UGameplayStatics::GetActorOfClass(World, ACPathVolume::StaticClass()));
+	
+	FCPathResult CPathResult = CPathVolume->FindPathSynchronous(Request.StartLocation, Request.EndLocation,  0, 0, 2);
+	
+	for (auto& CPathNode : CPathResult.UserPath)
+	{
+		Result.NavPathPoints.Emplace(CPathNode.WorldLocation);
+	}
 	
 	if (Result.IsEmpty())
 	{
 		return false;
 	}
+	
+#if SAN_WITH_DEBUG
+	if (SAN::Debug::DebugDisplayFindAnySurfacePath > 1)
+	{
+		for (auto& PathPoint : Result.NavPathPoints)
+		{
+			FU::Draw::DrawDebugSphere(
+				World,
+				PathPoint.Location,
+				20,
+				FColor::Green,
+				SAN::Debug::DebugDisplayFindAnySurfacePathTime
+			);
+		}
+	}
+#endif
 	
 	const auto* AnySurfaceNavSettings = USANAnySurfaceNavSettings::Get();
 	
@@ -99,6 +127,8 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePath(const FSANFindPathRequest& Req
 			}
 		}
 	}
+	
+	// TODO: from generated points find short path
 	
 	// try to smooth the path if there is a big distance between them
 	FillGapsLoopCount = 0;

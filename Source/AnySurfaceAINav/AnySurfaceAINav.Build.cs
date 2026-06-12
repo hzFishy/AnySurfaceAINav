@@ -19,7 +19,8 @@ public class AnySurfaceAINav : ModuleRules
 			"Slate", "SlateCore",
 			"AIModule", "NavigationSystem",
 			"DeveloperSettings",
-			"FishyUtils", "Nav3D"
+			"FishyUtils", 
+			"Nav3D", "CPathfinding"
 		});
 	}
 }
