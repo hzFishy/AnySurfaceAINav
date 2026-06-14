@@ -2,6 +2,7 @@
 
 #include "Core/SANCrawlerMovementComponent.h"
 #include "Core/SANAnySurfaceNavLibrary.h"
+#include "Data/SANAnySurfaceNavSettings.h"
 #include "Data/SANCore.h"
 
 	
@@ -9,6 +10,7 @@
 		Defaults
 	----------------------------------------------------------------------------*/
 USANCrawlerMovementComponent::USANCrawlerMovementComponent():
+	bAutoSetRootComponentToOwningActorRoot(true),
 	MaxMovementSpeed(300),
 	Acceleration(4000),
 	Deceleration(8000),
@@ -28,7 +30,12 @@ void USANCrawlerMovementComponent::InitializeComponent()
 {
 	Super::InitializeComponent();
 	
-	RootComponent = GetOwner()->GetRootComponent();
+	AnySurfaceNavSettings = GetDefault<USANAnySurfaceNavSettings>();
+	
+	if (bAutoSetRootComponentToOwningActorRoot)
+	{
+		RootComponent = GetOwner()->GetRootComponent();
+	}
 }
 
 void USANCrawlerMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
@@ -110,12 +117,11 @@ void USANCrawlerMovementComponent::ProcessPathRequest(float DeltaTime)
 	}
 	
 	const FVector CurrentLocation = GetOwner()->GetActorLocation();
-	// if CurrentMoveIndex is -1 we first have to move from our current location to the first point
 	const FVector TargetNextLocation = CurrentRequest.CachedPathResult.SurfaceHitResults[CurrentMoveIndex + 1].HitLocation;
 	const FVector Direction = TargetNextLocation - CurrentLocation;
 	CalcVelocity(Direction.GetSafeNormal(), DeltaTime);
 	
-	ApplyVelocity(DeltaTime);
+	ApplyVelocityAndRotation(DeltaTime);
 	
 	UE_VLOG_LOCATION(this, "SANCrawlerMovement", Display, CurrentLocation, 2, FColor::Blue, TEXT("CurrLoc"));
 	UE_VLOG_SEGMENT_THICK(this, "SANCrawlerMovement", Warning, 
@@ -171,7 +177,7 @@ void USANCrawlerMovementComponent::CalcVelocity(const FVector& Direction, float 
 	MovementVelocity = MovementVelocity.GetClampedToMaxSize(NewMaxSpeed);
 }
 
-void USANCrawlerMovementComponent::ApplyVelocity(float DeltaTime)
+void USANCrawlerMovementComponent::ApplyVelocityAndRotation(float DeltaTime)
 {
 	// Move actor
 	FVector Delta = MovementVelocity * DeltaTime;
@@ -181,19 +187,32 @@ void USANCrawlerMovementComponent::ApplyVelocity(float DeltaTime)
 		const FVector OldLocation = RootComponent->GetComponentLocation();
 		FQuat Rotation;
 		
+		const auto& CurrentSurface = CurrentRequest.CachedPathResult.SurfaceHitResults[CurrentMoveIndex];
+		
 		if (CurrentMoveIndex >= 0)
 		{
+			const FVector NewLocation = OldLocation + Delta;
+			
+			// get real time normal from world since it way differ from point normal
+			
+			FHitResult FloorHitResult;
+			GetWorld()->LineTraceSingleByProfile(
+				FloorHitResult,
+				NewLocation,
+				NewLocation + CurrentSurface.HitNormal * 500,
+				AnySurfaceNavSettings->BlockSurfaceCollisionProfile.Name
+			);
+			
 			Rotation = FindActorAlignmentRotation(
 				RootComponent->GetComponentRotation().Quaternion(), 
-				FVector(0.f, 0.f, 1.f), 
-				CurrentRequest.CachedPathResult.SurfaceHitResults[CurrentMoveIndex].HitNormal
+				FVector(0, 0, 1), 
+				FloorHitResult.ImpactNormal
 			);
 		}
 		else
 		{
 			Rotation = RootComponent->GetComponentRotation().Quaternion();
 		}
-		
 		
 		RootComponent->MoveComponent(Delta, Rotation, false);
 		
@@ -230,7 +249,7 @@ bool USANCrawlerMovementComponent::IsCloseEnoughToLocation(const FVector& Locati
 	----------------------------------------------------------------------------*/
 FQuat USANCrawlerMovementComponent::FindActorAlignmentRotation(const FQuat& InActorRotation, const FVector& InModelAxis, const FVector& InWorldNormal)
 {
-	// Copy from UActorFactory::FindActorAlignmentRotation
+	// Similar to UActorFactory::FindActorAlignmentRotation
 	FVector TransformedModelAxis = InActorRotation.RotateVector(InModelAxis);
 
 	const auto InverseActorRotation = InActorRotation.Inverse();

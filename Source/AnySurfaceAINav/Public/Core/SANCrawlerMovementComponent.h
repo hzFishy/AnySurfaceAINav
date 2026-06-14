@@ -7,6 +7,7 @@
 #include "SANCrawlerMovementComponent.generated.h"
 
 
+class USANAnySurfaceNavSettings;
 /** 
  *  Handles the movement of a given USceneComponent along a any surface path result.
  *  It doesn't do anything to handle collisions since the any surface pathfinding algo takes collisions into account.
@@ -23,6 +24,9 @@ class ANYSURFACEAINAV_API USANCrawlerMovementComponent : public UActorComponent
 		Properties
 	----------------------------------------------------------------------------*/
 protected:
+	UPROPERTY(EditAnywhere, Category="SAN|Agent")
+	bool bAutoSetRootComponentToOwningActorRoot;
+	
 	/** cm/s */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement")
 	float MaxMovementSpeed;
@@ -54,6 +58,9 @@ protected:
 	/////////////////////////////
 	/// Runtime
 protected:
+	UPROPERTY()
+	TObjectPtr<const USANAnySurfaceNavSettings> AnySurfaceNavSettings;
+	
 	EMoveComponentFlags MovementFlags;
 	
 	UPROPERTY(BlueprintReadOnly)
@@ -65,6 +72,7 @@ protected:
 	
 	bool bProcessingPathRequest;
 	
+	/** starts at -1 (so me first move from our current location to the first path point) */
 	int32 CurrentMoveIndex;
 	
 	
@@ -101,7 +109,7 @@ protected:
 	
 	void CalcVelocity(const FVector& Direction, float DeltaTime);
 	
-	void ApplyVelocity(float DeltaTime);
+	void ApplyVelocityAndRotation(float DeltaTime);
 	
 	
 	/*----------------------------------------------------------------------------
