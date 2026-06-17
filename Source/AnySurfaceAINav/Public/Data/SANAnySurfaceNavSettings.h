@@ -47,19 +47,23 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Config, Category="Collision", meta=(UIMin=0, ClampMin=0))
 	float SurfaceCollisionSphereMaxRadius;
-
+	
 	/** 
 	 *  When doing subdivisions, what distance should be used.
 	 */
 	UPROPERTY(EditAnywhere, Config, Category="Path", meta=(UIMin=0, ClampMin=0))
 	float MinDistanceBetweenSubdivisions;
-
+	
 	/**
 	 * Used more for security reasons in case of edge cases where infinite loops can happen.
 	 */
 	UPROPERTY(EditAnywhere, Config, Category="Path", meta=(UIMin=0, ClampMin=0))
 	int32 MaxFillGapsLoopCount;
 
+	/**  */
+	UPROPERTY(EditAnywhere, Config, Category="Path", meta=(UIMin=0, ClampMin=0))
+	float ShortFilteringMaxHeightDiff;
+	
 	/** 
 	 *  If surface points are close enough they are removed.
 	 *  See also CleanUpPathPointNormalThreshold.
@@ -75,6 +79,7 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, Config, Category="Path", meta=(UIMin=0, ClampMin=0, UIMax=1, ClampMax=1))
 	float CleanUpPathPointNormalThreshold;
+	
 	
 	virtual FName GetCategoryName() const override;
 };

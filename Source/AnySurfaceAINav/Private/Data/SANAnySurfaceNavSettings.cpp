@@ -3,6 +3,7 @@
 
 #include "Data/SANAnySurfaceNavSettings.h"
 
+
 USANAnySurfaceNavSettings::USANAnySurfaceNavSettings():
 	OverlapSurfaceCollisionProfile("OverlapAllDynamic"),
 	BlockSurfaceCollisionProfile("BlockAllDynamic"),
@@ -10,6 +11,7 @@ USANAnySurfaceNavSettings::USANAnySurfaceNavSettings():
 	SurfaceCollisionSphereMaxRadius(2000),
 	MinDistanceBetweenSubdivisions(150),
 	MaxFillGapsLoopCount(5),
+	ShortFilteringMaxHeightDiff(10),
 	CleanUpPathPointDistanceThreshold(50),
 	CleanUpPathPointNormalThreshold(0.8)
 {}

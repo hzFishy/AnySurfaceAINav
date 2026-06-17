@@ -5,12 +5,13 @@
 #include "Components/ActorComponent.h"
 #include "Data/SANMovementPathRequest.h"
 #include "SANCrawlerMovementComponent.generated.h"
-
-
 class USANAnySurfaceNavSettings;
+
+
 /** 
  *  Handles the movement of a given USceneComponent along a any surface path result.
  *  It doesn't do anything to handle collisions since the any surface pathfinding algo takes collisions into account.
+ *  The path is processed each tick, the component doesn't tick if no path are actives
  *  
  *  TODO: dynamicly update the path if the 3D nav grid is updated close to the cached path result points.
  */
@@ -24,17 +25,31 @@ class ANYSURFACEAINAV_API USANCrawlerMovementComponent : public UActorComponent
 		Properties
 	----------------------------------------------------------------------------*/
 protected:
-	UPROPERTY(EditAnywhere, Category="SAN|Agent")
+	/** If true the root component of the owning actor will be set as the "MovingComponent" on component initialization */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Agent")
 	bool bAutoSetRootComponentToOwningActorRoot;
 	
-	/** cm/s */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement")
+	/** Optional agent radius to use in given request */
+	UPROPERTY(EditAnywhere, Category="SAN|Agent", meta=(ClampMin="0", UIMin="0"))
+	TOptional<float> AgentRadiusOverride;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Agent", meta=(ClampMin="0", UIMin="0", Units="cm"))
+	float DistanceOverlap;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Ground", meta=(ClampMin="0", UIMin="0", Units="cm"))
+	float GroundDetectionDistance;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Ground", meta=(ClampMin="0", UIMin="0", Units="cm"))
+	float GroundHeightOffset;
+	
+	/** Speed in cm/s, can be dynamicly changed while already processing a path */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement", meta=(ClampMin="0", UIMin="0", Units="cm/s"))
 	float MaxMovementSpeed;
 	
 	/** Acceleration applied by input (rate of change of velocity) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement")
 	float Acceleration;
-
+	
 	/** Deceleration applied when there is no input (rate of change of velocity) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement")
 	float Deceleration;
@@ -47,13 +62,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement", meta=(ClampMin="0", UIMin="0"))
 	float TurningBoost;
 	
-	/** Optional agent radius to use in given request */
-	UPROPERTY(EditAnywhere, Category="SAN|Agent")
-	TOptional<float> AgentRadiusOverride;
-	
-	UPROPERTY(EditAnywhere, Category="SAN|Agent")
-	float DistanceOverlap;
-	
 	
 	/////////////////////////////
 	/// Runtime
@@ -64,7 +72,7 @@ protected:
 	EMoveComponentFlags MovementFlags;
 	
 	UPROPERTY(BlueprintReadOnly)
-	TObjectPtr<USceneComponent> RootComponent;
+	TObjectPtr<USceneComponent> MovingComponent;
 	
 	FVector MovementVelocity;
 	
@@ -74,6 +82,9 @@ protected:
 	
 	/** starts at -1 (so me first move from our current location to the first path point) */
 	int32 CurrentMoveIndex;
+	
+	/** Latest ground hit result */
+	FHitResult GroundHitResult;
 	
 	
 	/*----------------------------------------------------------------------------
@@ -92,8 +103,9 @@ public:
 		Core
 	----------------------------------------------------------------------------*/
 public:
+	/** This can be unsafe to change at runtime while a movement is being processed */
 	UFUNCTION(BlueprintCallable, Category="SAN|Movement")
-	void SetRootComponent(USceneComponent* NewRootComponent);
+	void SetMovingComponent(USceneComponent* NewComponent);
 	
 	UFUNCTION(BlueprintCallable, Category="SAN|Movement")
 	void RequestPathFollow(FSANFindPathRequest Request);
@@ -104,8 +116,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category="SAN|Movement")
 	void FollowPath(const FSANMovementPathRequest& Request);
 	
+	UFUNCTION(BlueprintPure, Category="SAN|Movement")
+	bool HasValidGround() const;
+	
 protected:
 	void ProcessPathRequest(float DeltaTime);
+	
+	void QueryGround();
 	
 	void CalcVelocity(const FVector& Direction, float DeltaTime);
 	

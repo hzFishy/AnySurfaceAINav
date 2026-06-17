@@ -4,18 +4,37 @@
 #include "Core/SANAnySurfaceNavLibrary.h"
 #include "Data/SANAnySurfaceNavSettings.h"
 #include "Data/SANCore.h"
+#if SAN_WITH_DEBUG
+#include "Draw/FUDraw.h"
+#endif
 
+
+namespace SAN::Movement
+{
+#if SAN_WITH_DEBUG
+	namespace Debug
+	{
+		FU_CMD_AUTOVAR(CDebugDisplayGround, 
+			"SAN.Debug.Movement.DisplayGround", "Show debug data of the ground, increase number for more details",
+			int32, DebugDisplayGround, 0
+		);
+	}
+#endif
+}
+	
 	
 	/*----------------------------------------------------------------------------
 		Defaults
 	----------------------------------------------------------------------------*/
 USANCrawlerMovementComponent::USANCrawlerMovementComponent():
 	bAutoSetRootComponentToOwningActorRoot(true),
+	DistanceOverlap(30),
+	GroundDetectionDistance(50),
+	GroundHeightOffset(5),
 	MaxMovementSpeed(300),
 	Acceleration(4000),
 	Deceleration(8000),
 	TurningBoost(8),
-	DistanceOverlap(30),
 	MovementFlags(MOVECOMP_NoFlags),
 	bProcessingPathRequest(false),
 	CurrentMoveIndex(-1)
@@ -34,13 +53,13 @@ void USANCrawlerMovementComponent::InitializeComponent()
 	
 	if (bAutoSetRootComponentToOwningActorRoot)
 	{
-		RootComponent = GetOwner()->GetRootComponent();
+		MovingComponent = GetOwner()->GetRootComponent();
 	}
 }
 
 void USANCrawlerMovementComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
-	if (!IsValid(RootComponent.Get()))
+	if (!IsValid(MovingComponent.Get()))
 	{
 		return;
 	}
@@ -61,9 +80,9 @@ void USANCrawlerMovementComponent::TickComponent(float DeltaTime, ELevelTick Tic
 	/*----------------------------------------------------------------------------
 		Core
 	----------------------------------------------------------------------------*/
-void USANCrawlerMovementComponent::SetRootComponent(USceneComponent* NewRootComponent)
+void USANCrawlerMovementComponent::SetMovingComponent(USceneComponent* NewComponent)
 {
-	RootComponent = NewRootComponent;
+	MovingComponent = NewComponent;
 }
 
 void USANCrawlerMovementComponent::RequestPathFollow(FSANFindPathRequest Request)
@@ -106,8 +125,16 @@ void USANCrawlerMovementComponent::FollowPath(const FSANMovementPathRequest& Req
 	UE_VLOG_LOCATION(this, "SANCrawlerMovement", Display, Request.CachedPathRequest.EndLocation, 50, FColor::Red, TEXT("EndLoc"));
 }
 
+bool USANCrawlerMovementComponent::HasValidGround() const
+{
+	return GroundHitResult.bBlockingHit && GroundHitResult.Component.IsValid();
+}
+
 void USANCrawlerMovementComponent::ProcessPathRequest(float DeltaTime)
 {
+	// get ground info
+	QueryGround();
+	
 	// check if we finished
 	if (CurrentMoveIndex + 1 >= CurrentRequest.CachedPathResult.SurfaceHitResults.Num())
 	{
@@ -117,7 +144,8 @@ void USANCrawlerMovementComponent::ProcessPathRequest(float DeltaTime)
 	}
 	
 	const FVector CurrentLocation = GetOwner()->GetActorLocation();
-	const FVector TargetNextLocation = CurrentRequest.CachedPathResult.SurfaceHitResults[CurrentMoveIndex + 1].HitLocation;
+	const auto& NexPoint = CurrentRequest.CachedPathResult.SurfaceHitResults[CurrentMoveIndex + 1];
+	const FVector TargetNextLocation = NexPoint.HitLocation + NexPoint.HitNormal * GroundHeightOffset;
 	const FVector Direction = TargetNextLocation - CurrentLocation;
 	CalcVelocity(Direction.GetSafeNormal(), DeltaTime);
 	
@@ -133,6 +161,50 @@ void USANCrawlerMovementComponent::ProcessPathRequest(float DeltaTime)
 	{
 		CurrentMoveIndex++;
 	}
+}
+
+void USANCrawlerMovementComponent::QueryGround()
+{
+	GroundHitResult.Reset(0, false);
+	
+	FCollisionShape Shape = FCollisionShape::MakeSphere(GroundDetectionDistance);
+	
+	const FVector OriginLocation = MovingComponent->GetComponentLocation();
+	
+	GetWorld()->SweepSingleByProfile(
+		GroundHitResult,
+		OriginLocation,
+		OriginLocation, 
+		FQuat::Identity,
+		AnySurfaceNavSettings->BlockSurfaceCollisionProfile.Name,
+		Shape
+	);
+	
+#if SAN_WITH_DEBUG
+	if (SAN::Movement::Debug::DebugDisplayGround > 0)
+	{
+		FU::Draw::DrawDebugDirectionalArrowFrame(
+			GetWorld(),
+			OriginLocation,
+			GroundHitResult.ImpactNormal * 150,
+			FColor::White,
+			2,
+			2
+		);
+		
+		if (SAN::Movement::Debug::DebugDisplayGround > 1)
+		{
+			FU::Draw::DrawDebugSphereFrame(
+				GetWorld(),
+				OriginLocation,
+				GroundDetectionDistance,
+				FColor::White,
+				2,
+				1
+			);
+		}
+	}
+#endif
 }
 
 void USANCrawlerMovementComponent::CalcVelocity(const FVector& Direction, float DeltaTime)
@@ -181,49 +253,35 @@ void USANCrawlerMovementComponent::ApplyVelocityAndRotation(float DeltaTime)
 {
 	// Move actor
 	FVector Delta = MovementVelocity * DeltaTime;
-
+	
 	if (!Delta.IsNearlyZero(1e-6f))
 	{
-		const FVector OldLocation = RootComponent->GetComponentLocation();
+		const FVector OldLocation = MovingComponent->GetComponentLocation();
 		FQuat Rotation;
 		
-		const auto& CurrentSurface = CurrentRequest.CachedPathResult.SurfaceHitResults[CurrentMoveIndex];
-		
-		if (CurrentMoveIndex >= 0)
+		if (HasValidGround())
 		{
-			const FVector NewLocation = OldLocation + Delta;
-			
-			// get real time normal from world since it way differ from point normal
-			
-			FHitResult FloorHitResult;
-			GetWorld()->LineTraceSingleByProfile(
-				FloorHitResult,
-				NewLocation,
-				NewLocation + CurrentSurface.HitNormal * 500,
-				AnySurfaceNavSettings->BlockSurfaceCollisionProfile.Name
-			);
-			
 			Rotation = FindActorAlignmentRotation(
-				RootComponent->GetComponentRotation().Quaternion(), 
+				MovingComponent->GetComponentRotation().Quaternion(), 
 				FVector(0, 0, 1), 
-				FloorHitResult.ImpactNormal
+				GroundHitResult.ImpactNormal
 			);
 		}
 		else
 		{
-			Rotation = RootComponent->GetComponentRotation().Quaternion();
+			Rotation = MovingComponent->GetComponentRotation().Quaternion();
 		}
 		
-		RootComponent->MoveComponent(Delta, Rotation, false);
+		MovingComponent->MoveComponent(Delta, Rotation, false);
 		
 		// Update velocity
 		// We don't want position changes to vastly reverse our direction (which can happen due to penetration fixups etc)
-		const FVector NewLocation = RootComponent->GetComponentLocation();
+		const FVector NewLocation = MovingComponent->GetComponentLocation();
 		MovementVelocity = ((NewLocation - OldLocation) / DeltaTime);
 	}
 	
 	// Finalize
-	RootComponent->ComponentVelocity = MovementVelocity;
+	MovingComponent->ComponentVelocity = MovementVelocity;
 }
 
 bool USANCrawlerMovementComponent::IsExceedingMaxSpeed(float MaxSpeed) const
@@ -240,7 +298,7 @@ bool USANCrawlerMovementComponent::IsExceedingMaxSpeed(float MaxSpeed) const
 
 bool USANCrawlerMovementComponent::IsCloseEnoughToLocation(const FVector& Location) const
 {
-	return FVector::Dist(RootComponent->GetComponentLocation(), Location) <= DistanceOverlap;
+	return FVector::Dist(MovingComponent->GetComponentLocation(), Location) <= DistanceOverlap;
 }
 
 	
