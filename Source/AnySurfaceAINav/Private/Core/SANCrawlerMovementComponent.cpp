@@ -14,7 +14,7 @@ namespace SAN::Movement
 #if SAN_WITH_DEBUG
 	namespace Debug
 	{
-		FU_CMD_AUTOVAR(CDebugDisplayGround, 
+		FU_CMD_AUTOVAR(DebugDisplayGroundCmd, 
 			"SAN.Debug.Movement.DisplayGround", "Show debug data of the ground, increase number for more details",
 			int32, DebugDisplayGround, 0
 		);
