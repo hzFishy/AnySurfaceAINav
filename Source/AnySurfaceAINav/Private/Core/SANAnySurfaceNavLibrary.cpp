@@ -277,67 +277,67 @@ bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfac
 	{
 		if (PreviousSurface.IsValid())
 		{
-			// remove hits blocked by geometry
-			for (auto HitIt = HitResults.CreateIterator(); HitIt; ++HitIt)
-			{
-				FHitResult BlockHitResult;
-				const bool bHit = World->LineTraceSingleByProfile(
-					BlockHitResult,
-					PointLocation,
-					(*HitIt).ImpactPoint,
-					Settings->BlockSurfaceCollisionProfile.Name
-				);
-				
-				// remove if we hit something else than the destination comp
-				if (bHit && (*HitIt).GetComponent() != BlockHitResult.GetComponent())
-				{
-#if SAN_WITH_DEBUG
-					if (SAN::Library::Debug::DebugDisplayFindAnySurfacePath > 1)
-					{
-						FU::Draw::DrawDebugSphere(
-							World,
-							(*HitIt).ImpactPoint,
-							5,
-							FColor::Red,
-							SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
-						);
-					}
-#endif
-					HitIt.RemoveCurrent();
-				}
-			}
-			
-			// TODO:
-			// take the closest hit location to PointLocation, while having the closest normal
-			// TODO:
-			// if normals are to different, two points can be taken
-			
-			// TODO: move to settings
-			constexpr float CloseDistanceScorePerCm = 10;
-			constexpr float SimilarNormalScorePerDot = 10;
-			
-			TArray<float> HitResultsScores;
-			HitResultsScores.Reserve(HitResults.Num());
-			
 			if (HitResults.Num() > 1)
 			{
-				int32 ClosestIndex = -1;
-				float ClosestDistance = UE_MAX_FLT;
+				// remove hits blocked by geometry
+				for (auto HitIt = HitResults.CreateIterator(); HitIt; ++HitIt)
+				{
+					FHitResult BlockHitResult;
+					const bool bHit = World->LineTraceSingleByProfile(
+						BlockHitResult,
+						PointLocation,
+						(*HitIt).ImpactPoint,
+						Settings->BlockSurfaceCollisionProfile.Name
+					);
 				
+					// remove if we hit something else than the destination comp
+					if (bHit && (*HitIt).GetComponent() != BlockHitResult.GetComponent())
+					{
+#if SAN_WITH_DEBUG
+						if (SAN::Library::Debug::DebugDisplayFindAnySurfacePath > 1)
+						{
+							FU::Draw::DrawDebugSphere(
+								World,
+								(*HitIt).ImpactPoint,
+								5,
+								FColor::Red,
+								SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
+							);
+						}
+#endif
+						HitIt.RemoveCurrent();
+					}
+				}
+				
+				// TODO:
+				// take the closest hit location to PointLocation, while having the closest normal
+				// TODO:
+				// if normals are to different, two points can be taken
+				
+				// TODO: move to settings
+				constexpr float CloseDistanceScorePerCm = 100;
+				constexpr float SimilarNormalScorePerDot = 100;
+				
+				TArray<float> HitResultsScores;
+				HitResultsScores.Reserve(HitResults.Num());
+				
+				// calc score with distances
 				for (int32 HitIndex = 0; HitIndex < HitResults.Num(); ++HitIndex)
 				{
 					const auto& HitResult = HitResults[HitIndex];
 					const float Distance = FVector::Dist(HitResult.ImpactPoint, PreviousSurface.HitLocation);
 				
-					if (Distance > 0 && Distance < ClosestDistance)
-					{
-						ClosestIndex = HitIndex;
-						ClosestDistance = Distance;
-					}
+					// store score, the closest distance will have the highest score
+					HitResultsScores.Emplace(CloseDistanceScorePerCm / Distance);
 				}
 				
-				OutBestSurface.HitLocation = HitResults[ClosestIndex].ImpactPoint;
-				OutBestSurface.HitNormal = HitResults[ClosestIndex].ImpactNormal;
+				// calc score with normals
+				for (int32 HitIndex = 0; HitIndex < HitResults.Num(); ++HitIndex)
+				{
+					// store score, the more the normals match the highest the score
+					const auto& HitResult = HitResults[HitIndex];
+					HitResultsScores[HitIndex] += FVector::DotProduct(HitResult.ImpactNormal, PreviousSurface.HitNormal) * SimilarNormalScorePerDot;
+				}
 			}
 			else
 			{
