@@ -94,33 +94,39 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 	
 	const auto* AnySurfaceNavSettings = USANAnySurfaceNavSettings::Get();
 	
-	// from each point, get closest surface
+	// from each point, get closest surface(s) to build a surface "path"
 	TArray<FSANSurfaceHitResult> RawSurfaceHitResults;
 	RawSurfaceHitResults.Reserve(Result.NavPathPoints.Num() * 5);
 	
 	
 	// iterate all points
-	FSANSurfaceHitResult PreviousSurface;
+	TArray<FSANSurfaceHitResult> PreviousSurfaces;
 	for (int32 NavPointIndx = 0; NavPointIndx < Result.NavPathPoints.Num(); ++NavPointIndx)
 	{
 		const auto& CurrentPoint = Result.NavPathPoints[NavPointIndx];
 		
 		// current point
 		{
-			FSANSurfaceHitResult BestSurfaceHit;
-			if (GetBestSurface(World, AnySurfaceNavSettings, CurrentPoint.Location, PreviousSurface, BestSurfaceHit))
+			TArray<FSANSurfaceHitResult> BestSurfaceHits;
+			if (GetBestSurface(World, AnySurfaceNavSettings, CurrentPoint.Location, PreviousSurfaces, BestSurfaceHits))
 			{
-				RawSurfaceHitResults.Emplace(BestSurfaceHit);
+				for (const auto& BestSurfaceHit : BestSurfaceHits)
+				{
+					RawSurfaceHitResults.Emplace(BestSurfaceHit);
+				}
 			}
-			PreviousSurface = BestSurfaceHit;
+			
+			// override any previous surfaces
+			PreviousSurfaces = BestSurfaceHits;
 		}
+		
 		// skip the last
 		if (NavPointIndx == Result.NavPathPoints.Num() - 1)
 		{
 			break;
 		}
 		
-		// subdivions
+		// see if we have to do subdivions if nav points are far enough from each other
 		const auto& NextPoint = Result.NavPathPoints[NavPointIndx + 1];
 		
 		const float DistanceBetweenPoints = FVector::Dist(CurrentPoint.Location, NextPoint.Location);
@@ -134,15 +140,23 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 			{
 				const FVector SbdvLocation = FMath::Lerp(CurrentPoint.Location, NextPoint.Location, (float)SbdvIndx/TotalNbOfSubdivisions);
 			
-				FSANSurfaceHitResult BestSurfaceHit;
-				if (GetBestSurface(World, AnySurfaceNavSettings, SbdvLocation, PreviousSurface, BestSurfaceHit))
+				TArray<FSANSurfaceHitResult> BestSurfaceHits;
+				if (GetBestSurface(World, AnySurfaceNavSettings, SbdvLocation, PreviousSurfaces, BestSurfaceHits))
 				{
-					RawSurfaceHitResults.Emplace(BestSurfaceHit);
+					for (const auto& BestSurfaceHit : BestSurfaceHits)
+					{
+						RawSurfaceHitResults.Emplace(BestSurfaceHit);
+					}
 				}
-				PreviousSurface = BestSurfaceHit;
+				
+				// override any previous surfaces
+				PreviousSurfaces = BestSurfaceHits;
 			}
 		}
 	}
+	
+	// clear before further use
+	PreviousSurfaces.Empty();
 	
 	
 	// from generated points find shortest path
@@ -162,15 +176,17 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 #endif
 	
 	
-	// try to clean the path if there is a big distance between them
+	// try to clean the path if there is a big distance between found surfaces points
+	// reset vars
 	FillGapsLoopCount = 0;
+	
 #if SAN_WITH_DEBUG
 	if (SAN::Library::Debug::DebugDisableFillGaps == 0)
 	{
-		const bool bFilledGaps = FillGaps(World, AnySurfaceNavSettings, PreviousSurface, RawShortSurfaceHitResults);
+		const bool bFilledGaps = FillGaps(World, AnySurfaceNavSettings, PreviousSurfaces, RawShortSurfaceHitResults);
 	}
 #else 
-	const bool bFilledGaps = FillGaps(World, AnySurfaceNavSettings, PreviousSurface, RawShortSurfaceHitResults);
+	const bool bFilledGaps = FillGaps(World, AnySurfaceNavSettings, PreviousSurfaces, RawShortSurfaceHitResults);
 #endif
 	
 	
@@ -266,8 +282,11 @@ bool USANAnySurfaceNavLibrary::IsPathResultEmpty(const FSANFindPathResult& PathR
 	return PathResult.IsEmpty();
 }
 
-bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FVector PointLocation, FSANSurfaceHitResult PreviousSurface, FSANSurfaceHitResult& OutBestSurface)
+bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FVector PointLocation, const TArray<FSANSurfaceHitResult>& PreviousSurfaces, TArray<FSANSurfaceHitResult>& OutBestSurfaces)
 {
+	// there is always a result
+	OutBestSurfaces.AddDefaulted(1);
+	
 	TArray<FHitResult> HitResults;
 	// trace until we find a surface
 	// TODO: from previous used radius use that as base to avoid repititive traces to find similar radius
@@ -275,11 +294,11 @@ bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfac
 	
 	if (bFoundSurface && !HitResults.IsEmpty())
 	{
-		if (PreviousSurface.IsValid())
+		if (!PreviousSurfaces.IsEmpty())
 		{
 			if (HitResults.Num() > 1)
 			{
-				// remove hits blocked by geometry
+				// remove hits blocked by geometry (if there is a blocking primitive between the nav point and the found surfaces)
 				for (auto HitIt = HitResults.CreateIterator(); HitIt; ++HitIt)
 				{
 					FHitResult BlockHitResult;
@@ -289,8 +308,7 @@ bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfac
 						(*HitIt).ImpactPoint,
 						Settings->BlockSurfaceCollisionProfile.Name
 					);
-				
-					// remove if we hit something else than the destination comp
+					
 					if (bHit && (*HitIt).GetComponent() != BlockHitResult.GetComponent())
 					{
 #if SAN_WITH_DEBUG
@@ -309,14 +327,28 @@ bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfac
 					}
 				}
 				
-				// TODO:
+				// get the ideal previous surface, for now its the closest surface
+				float BestPreviousSurfaceDistance = TNumericLimits<float>::Max();
+				int32 BestPreviousSurfaceIndex = -1;
+				
+				for (int i = 0; i < PreviousSurfaces.Num(); ++i)
+				{
+					const float Distance = FVector::Dist(PreviousSurfaces[i].HitLocation, PointLocation);
+					if (Distance < BestPreviousSurfaceDistance)
+					{
+						BestPreviousSurfaceDistance = Distance;
+						BestPreviousSurfaceIndex = i;
+					}
+				}
+				
+				const auto& BestPreviousSurface = PreviousSurfaces[BestPreviousSurfaceIndex];
+				
 				// take the closest hit location to PointLocation, while having the closest normal
-				// TODO:
-				// if normals are to different, two points can be taken
 				
 				// TODO: move to settings
-				constexpr float CloseDistanceScorePerCm = 100;
-				constexpr float SimilarNormalScorePerDot = 100;
+				constexpr float CloseDistanceScorePerCm = 1000;
+				constexpr float SimilarNormalScorePerDot = 10;
+				constexpr float DotNormalDiffMaxThreshold = 0.2;
 				
 				TArray<float> HitResultsScores;
 				HitResultsScores.Reserve(HitResults.Num());
@@ -325,30 +357,67 @@ bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfac
 				for (int32 HitIndex = 0; HitIndex < HitResults.Num(); ++HitIndex)
 				{
 					const auto& HitResult = HitResults[HitIndex];
-					const float Distance = FVector::Dist(HitResult.ImpactPoint, PreviousSurface.HitLocation);
+					const float Distance = FVector::Dist(HitResult.ImpactPoint, BestPreviousSurface.HitLocation);
 				
 					// store score, the closest distance will have the highest score
 					HitResultsScores.Emplace(CloseDistanceScorePerCm / Distance);
 				}
+				
+				TArray<int32> ExtraDiffSurfaces;
+				ExtraDiffSurfaces.Reserve(HitResults.Num() / 2);
 				
 				// calc score with normals
 				for (int32 HitIndex = 0; HitIndex < HitResults.Num(); ++HitIndex)
 				{
 					// store score, the more the normals match the highest the score
 					const auto& HitResult = HitResults[HitIndex];
-					HitResultsScores[HitIndex] += FVector::DotProduct(HitResult.ImpactNormal, PreviousSurface.HitNormal) * SimilarNormalScorePerDot;
+					const float Dot = FVector::DotProduct(HitResult.ImpactNormal, BestPreviousSurface.HitNormal);
+					HitResultsScores[HitIndex] += Dot * SimilarNormalScorePerDot;
+					
+					// if normals are to different we will append the surface
+					if (Dot <= DotNormalDiffMaxThreshold)
+					{
+						ExtraDiffSurfaces.Emplace(HitIndex);
+					}
 				}
+				
+				// get best score
+				int32 BestScoreIndex = 0;
+				float BestScore = 0;
+				for (int32 i = 1; i < HitResults.Num(); ++i)
+				{
+					if (HitResultsScores[i] > BestScore && !ExtraDiffSurfaces.Contains(i))
+					{
+						BestScore = HitResultsScores[i];
+						BestScoreIndex = i;
+					}
+				}
+				
+				OutBestSurfaces[0] = FSANSurfaceHitResult(HitResults[BestScoreIndex]);
+				
+				// TODO: if normals are to different, two points can be taken
+				for (int32 i = 0; i < ExtraDiffSurfaces.Num(); ++i)
+				{
+					OutBestSurfaces.Emplace(HitResults[ExtraDiffSurfaces[i]]);
+				}
+				
+				// sort the out surfaces so we order from closest to furthest from the best previous location
+				
+				// TODO: debug sort
+				OutBestSurfaces.Sort([BestPreviousSurface] (const FSANSurfaceHitResult& A, const FSANSurfaceHitResult& B)
+				{
+					return FVector::Dist(A.HitLocation, BestPreviousSurface.HitLocation) < FVector::Dist(B.HitLocation, BestPreviousSurface.HitLocation);
+				});
 			}
 			else
 			{
-				OutBestSurface.HitLocation = HitResults[0].ImpactPoint;
-				OutBestSurface.HitNormal = HitResults[0].ImpactNormal;
+				OutBestSurfaces[0] = FSANSurfaceHitResult(HitResults[0]);
 			}
 		}
 		else
 		{
-			OutBestSurface.HitLocation = HitResults[0].ImpactPoint;
-			OutBestSurface.HitNormal = HitResults[0].ImpactNormal;
+			// TODO: might have to still run the "multiple out surfaces" code even if we are the first point
+			OutBestSurfaces[0] = FSANSurfaceHitResult(HitResults[0]);
 		}
 	}
 	
@@ -509,7 +578,7 @@ void USANAnySurfaceNavLibrary::KeepShortestDistancePoints(UWorld* World, const U
 	}
 }
 
-bool USANAnySurfaceNavLibrary::FillGaps(UWorld* World, const USANAnySurfaceNavSettings* Settings, FSANSurfaceHitResult PreviousSurface, TArray<FSANSurfaceHitResult>& RawSurfaceHits)
+bool USANAnySurfaceNavLibrary::FillGaps(UWorld* World, const USANAnySurfaceNavSettings* Settings, TArray<FSANSurfaceHitResult>& PreviousSurfaces, TArray<FSANSurfaceHitResult>& RawSurfaceHits)
 {
 	FillGapsLoopCount++;
 	
@@ -521,6 +590,7 @@ bool USANAnySurfaceNavLibrary::FillGaps(UWorld* World, const USANAnySurfaceNavSe
 	
 	bool bDidChanged = false;
 	
+	// iterate all points and see if we can find gaps (starting from the end of the path)
 	for (int32 RawSurfaceHitIndex = 0; RawSurfaceHitIndex < RawSurfaceHits.Num() - 1; ++RawSurfaceHitIndex)
 	{
 		const auto& RawSurfaceHit = RawSurfaceHits[RawSurfaceHitIndex];
@@ -554,14 +624,19 @@ bool USANAnySurfaceNavLibrary::FillGaps(UWorld* World, const USANAnySurfaceNavSe
 			{
 				const FVector SbdvLocation = FMath::Lerp(RawSurfaceHit.HitLocation, NextRawSurfaceHit.HitLocation, (float)SbdvIndx/TotalNbOfSubdivisions);
 				
-				FSANSurfaceHitResult BestSurfaceHit;
-				if (GetBestSurface(World, Settings, SbdvLocation, PreviousSurface, BestSurfaceHit))
+				TArray<FSANSurfaceHitResult> BestSurfaceHits;
+				if (GetBestSurface(World, Settings, SbdvLocation, PreviousSurfaces, BestSurfaceHits))
 				{
-					// inject at the correct index
-					RawSurfaceHits.EmplaceAt(RawSurfaceHitIndex + 1, BestSurfaceHit);
-					RawSurfaceHitIndex++;
+					// inject filling surfaces at the correct indices
+					for (int i = 0; i < BestSurfaceHits.Num(); ++i)
+					{
+						RawSurfaceHits.EmplaceAt(RawSurfaceHitIndex + 1, BestSurfaceHits[i]);
+						RawSurfaceHitIndex++;
+					}
 				}
-				PreviousSurface = BestSurfaceHit;
+				
+				// override any past surfaces
+				PreviousSurfaces = BestSurfaceHits;
 			}
 		}
 	}
@@ -569,7 +644,7 @@ bool USANAnySurfaceNavLibrary::FillGaps(UWorld* World, const USANAnySurfaceNavSe
 	// if we didnt change anything we can stop here
 	if (bDidChanged)
 	{
-		return FillGaps(World, Settings, PreviousSurface, RawSurfaceHits);
+		return FillGaps(World, Settings, PreviousSurfaces, RawSurfaceHits);
 	}
 	else
 	{

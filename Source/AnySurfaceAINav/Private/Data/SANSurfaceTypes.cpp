@@ -4,9 +4,14 @@
 #include "Data/SANSurfaceTypes.h"
 
 
-FSANSurfaceHitResult::FSANSurfaceHitResult() :
+FSANSurfaceHitResult::FSANSurfaceHitResult():
 	HitLocation(FVector::ZeroVector),
 	HitNormal(FVector::ZeroVector)
+{}
+
+FSANSurfaceHitResult::FSANSurfaceHitResult(const FHitResult& HitResult):
+	HitLocation(HitResult.ImpactPoint),
+	HitNormal(HitResult.ImpactNormal)
 {}
 
 

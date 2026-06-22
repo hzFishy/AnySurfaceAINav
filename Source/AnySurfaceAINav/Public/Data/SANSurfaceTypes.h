@@ -7,9 +7,12 @@
 USTRUCT(BlueprintType, DisplayName="SAN Surface Hit Result")
 struct ANYSURFACEAINAV_API FSANSurfaceHitResult
 {
+	GENERATED_BODY()
+	
 	FSANSurfaceHitResult();
 	
-	GENERATED_BODY()
+	FSANSurfaceHitResult(const FHitResult& HitResult);
+	
 	
 	UPROPERTY(BlueprintReadOnly)
 	FVector HitLocation;

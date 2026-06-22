@@ -23,12 +23,16 @@ public:
 protected:
 	static int32 FillGapsLoopCount;
 	
-	static bool GetBestSurface(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FVector PointLocation, FSANSurfaceHitResult PreviousSurface, FSANSurfaceHitResult& OutBestSurface);
+	static bool GetBestSurface(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FVector PointLocation, const TArray<FSANSurfaceHitResult>& PreviousSurfaces, TArray<FSANSurfaceHitResult>& OutBestSurfaces);
 	
 	static bool GetBestSurfaceInternal(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FVector PointLocation, float Radius, TArray<FHitResult>& HitResults);
 
 	/** FilteredRawSurfaceHits will be edited */
 	static void KeepShortestDistancePoints(UWorld* World, const USANAnySurfaceNavSettings* Settings, const TArray<FSANSurfaceHitResult>& InRawSurfaceHits, TArray<FSANSurfaceHitResult>& OutFilteredRawSurfaceHits);
-	
-	static bool FillGaps(UWorld* World, const USANAnySurfaceNavSettings* Settings, FSANSurfaceHitResult PreviousSurface, TArray<FSANSurfaceHitResult>& RawSurfaceHits);
+
+	/** 
+	 *  
+	 *  @param RawSurfaceHits The actual surface hits path
+	 */
+	static bool FillGaps(UWorld* World, const USANAnySurfaceNavSettings* Settings, TArray<FSANSurfaceHitResult>& PreviousSurfaces, TArray<FSANSurfaceHitResult>& RawSurfaceHits);
 };
