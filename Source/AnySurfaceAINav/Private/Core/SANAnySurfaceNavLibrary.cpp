@@ -81,7 +81,7 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 	{
 		for (auto& PathPoint : Result.NavPathPoints)
 		{
-			FU::Draw::DrawDebugSphere(
+			FU::Draw::Advanced::DrawDebugSphere(
 				World,
 				PathPoint.Location,
 				20,
@@ -215,7 +215,7 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 #if SAN_WITH_DEBUG
 				if (SAN::Library::Debug::DebugDisplayFindAnySurfacePath > 1)
 				{
-					FU::Draw::DrawDebugSphere(
+					FU::Draw::Advanced::DrawDebugSphere(
 						World,
 						NextRawSurfaceHit.HitLocation,
 						20,
@@ -247,7 +247,7 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 		{
 			const auto& HitResult = Result.SurfaceHitResults[i];
 			
-			FU::Draw::DrawDebugString(
+			FU::Draw::Advanced::DrawDebugText(
 				World,
 				HitResult.HitLocation + FVector(0, 0, 20),
 				FString::Printf(TEXT("%i"), i),
@@ -255,7 +255,7 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 				SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
 			);
 			
-			FU::Draw::DrawDebugSphere(
+			FU::Draw::Advanced::DrawDebugSphere(
 				World,
 				HitResult.HitLocation,
 				10,
@@ -263,10 +263,10 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 				SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
 			);
 		
-			FU::Draw::DrawDebugDirectionalArrow(
+			FU::Draw::Advanced::DrawDebugDirectionalArrow(
 				World,
 				HitResult.HitLocation,
-				HitResult.HitNormal * 100,
+				 HitResult.HitLocation + HitResult.HitNormal * 100,
 				FColor::Magenta,
 				SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
 			);
@@ -314,7 +314,7 @@ bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfac
 #if SAN_WITH_DEBUG
 						if (SAN::Library::Debug::DebugDisplayFindAnySurfacePath > 1)
 						{
-							FU::Draw::DrawDebugSphere(
+							FU::Draw::Advanced::DrawDebugSphere(
 								World,
 								(*HitIt).ImpactPoint,
 								5,
@@ -426,10 +426,10 @@ bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfac
 	{
 		for (auto& HitResult : HitResults)
 		{
-			FU::Draw::DrawDebugDirectionalArrow(
+			FU::Draw::Advanced::DrawDebugDirectionalArrow(
 				World,
 				HitResult.ImpactPoint,
-				HitResult.ImpactNormal * 120,
+				HitResult.ImpactPoint + HitResult.ImpactNormal * 120,
 				FColor::Cyan,
 				SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
 			);
@@ -469,7 +469,7 @@ bool USANAnySurfaceNavLibrary::GetBestSurfaceInternal(UWorld* World, const USANA
 #if SAN_WITH_DEBUG
 		if (SAN::Library::Debug::DebugDisplayFindAnySurfacePath > 2)
 		{
-			FU::Draw::DrawDebugSphere(
+			FU::Draw::Advanced::DrawDebugSphere(
 				World,
 				PointLocation,
 				5,
@@ -477,7 +477,7 @@ bool USANAnySurfaceNavLibrary::GetBestSurfaceInternal(UWorld* World, const USANA
 				SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
 			);
 			
-			FU::Draw::DrawDebugSphere(
+			FU::Draw::Advanced::DrawDebugSphere(
 				World,
 				PointLocation,
 				Radius,
@@ -542,7 +542,7 @@ void USANAnySurfaceNavLibrary::KeepShortestDistancePoints(UWorld* World, const U
 #if SAN_WITH_DEBUG
 				if (SAN::Library::Debug::DebugDisplayFindAnySurfacePath > 1)
 				{
-					FU::Draw::DrawDebugSphere(
+					FU::Draw::Advanced::DrawDebugSphere(
 						World,
 						InRawSurfaceHits[NIndex].HitLocation,
 						20,
@@ -604,7 +604,7 @@ bool USANAnySurfaceNavLibrary::FillGaps(UWorld* World, const USANAnySurfaceNavSe
 #if SAN_WITH_DEBUG
 			if (SAN::Library::Debug::DebugDisplayFindAnySurfacePath > 1)
 			{
-				FU::Draw::DrawDebugLine(World,
+				FU::Draw::Advanced::DrawDebugSolidLine(World,
 				   RawSurfaceHit.HitLocation,
 				   NextRawSurfaceHit.HitLocation,
 				   FColor::White,
