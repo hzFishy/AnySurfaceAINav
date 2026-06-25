@@ -49,6 +49,8 @@ int32 USANAnySurfaceNavLibrary::FillGapsLoopCount = 0;
 
 bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest& Request, FSANFindPathResult& Result)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(AnySurfaceNav::GlobalFindPathSync)
+	
 	if (!Request.IsValid())
 	{
 		return false;
@@ -63,7 +65,11 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 	// TODO: rework, cache it ? or add it to the request params (as optional?)
 	auto* CPathVolume = Cast<ACPathVolume>(UGameplayStatics::GetActorOfClass(World, ACPathVolume::StaticClass()));
 	
-	FCPathResult CPathResult = CPathVolume->FindPathSynchronous(Request.StartLocation, Request.EndLocation,  0, 0, 2);
+	FCPathResult CPathResult;
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(AnySurfaceNav::CFindPathSync)
+		CPathResult = CPathVolume->FindPathSynchronous(Request.StartLocation, Request.EndLocation,  0, 0, 2);
+	}
 	
 	for (auto& CPathNode : CPathResult.UserPath)
 	{
@@ -98,144 +104,153 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 	TArray<FSANSurfaceHitResult> RawSurfaceHitResults;
 	RawSurfaceHitResults.Reserve(Result.NavPathPoints.Num() * 5);
 	
-	
 	// iterate all points
 	TArray<FSANSurfaceHitResult> PreviousSurfaces;
-	for (int32 NavPointIndx = 0; NavPointIndx < Result.NavPathPoints.Num(); ++NavPointIndx)
 	{
-		const auto& CurrentPoint = Result.NavPathPoints[NavPointIndx];
-		
-		// current point
+		TRACE_CPUPROFILER_EVENT_SCOPE(AnySurfaceNav::BuildSurfacePath)
+		for (int32 NavPointIndx = 0; NavPointIndx < Result.NavPathPoints.Num(); ++NavPointIndx)
 		{
-			TArray<FSANSurfaceHitResult> BestSurfaceHits;
-			if (GetBestSurface(World, AnySurfaceNavSettings, CurrentPoint.Location, PreviousSurfaces, BestSurfaceHits))
+			const auto& CurrentPoint = Result.NavPathPoints[NavPointIndx];
+		
+			// current point
 			{
-				for (const auto& BestSurfaceHit : BestSurfaceHits)
-				{
-					RawSurfaceHitResults.Emplace(BestSurfaceHit);
-				}
-			}
-			
-			// override any previous surfaces
-			PreviousSurfaces = BestSurfaceHits;
-		}
-		
-		// skip the last
-		if (NavPointIndx == Result.NavPathPoints.Num() - 1)
-		{
-			break;
-		}
-		
-		// see if we have to do subdivions if nav points are far enough from each other
-		const auto& NextPoint = Result.NavPathPoints[NavPointIndx + 1];
-		
-		const float DistanceBetweenPoints = FVector::Dist(CurrentPoint.Location, NextPoint.Location);
-		const int32 TotalNbOfSubdivisions = FMath::Floor(DistanceBetweenPoints / AnySurfaceNavSettings->MinDistanceBetweenSubdivisions);
-		// we skip the "last" point in the subdivision since it will be the next nav point
-		const int32 NbOfSubdivisions = TotalNbOfSubdivisions - 1;
-		
-		if (NbOfSubdivisions > 0)
-		{
-			for (int32 SbdvIndx = 1; SbdvIndx < NbOfSubdivisions + 1; ++SbdvIndx)
-			{
-				const FVector SbdvLocation = FMath::Lerp(CurrentPoint.Location, NextPoint.Location, (float)SbdvIndx/TotalNbOfSubdivisions);
-			
 				TArray<FSANSurfaceHitResult> BestSurfaceHits;
-				if (GetBestSurface(World, AnySurfaceNavSettings, SbdvLocation, PreviousSurfaces, BestSurfaceHits))
+				if (GetBestSurface(World, AnySurfaceNavSettings, CurrentPoint.Location, PreviousSurfaces, BestSurfaceHits))
 				{
 					for (const auto& BestSurfaceHit : BestSurfaceHits)
 					{
 						RawSurfaceHitResults.Emplace(BestSurfaceHit);
 					}
 				}
-				
+			
 				// override any previous surfaces
 				PreviousSurfaces = BestSurfaceHits;
 			}
+		
+			// skip the last
+			if (NavPointIndx == Result.NavPathPoints.Num() - 1)
+			{
+				break;
+			}
+		
+			// see if we have to do subdivions if nav points are far enough from each other
+			const auto& NextPoint = Result.NavPathPoints[NavPointIndx + 1];
+		
+			const float DistanceBetweenPoints = FVector::Dist(CurrentPoint.Location, NextPoint.Location);
+			const int32 TotalNbOfSubdivisions = FMath::Floor(DistanceBetweenPoints / AnySurfaceNavSettings->MinDistanceBetweenSubdivisions);
+			// we skip the "last" point in the subdivision since it will be the next nav point
+			const int32 NbOfSubdivisions = TotalNbOfSubdivisions - 1;
+		
+			if (NbOfSubdivisions > 0)
+			{
+				for (int32 SbdvIndx = 1; SbdvIndx < NbOfSubdivisions + 1; ++SbdvIndx)
+				{
+					const FVector SbdvLocation = FMath::Lerp(CurrentPoint.Location, NextPoint.Location, (float)SbdvIndx/TotalNbOfSubdivisions);
+			
+					TArray<FSANSurfaceHitResult> BestSurfaceHits;
+					if (GetBestSurface(World, AnySurfaceNavSettings, SbdvLocation, PreviousSurfaces, BestSurfaceHits))
+					{
+						for (const auto& BestSurfaceHit : BestSurfaceHits)
+						{
+							RawSurfaceHitResults.Emplace(BestSurfaceHit);
+						}
+					}
+				
+					// override any previous surfaces
+					PreviousSurfaces = BestSurfaceHits;
+				}
+			}
 		}
 	}
-	
 	// clear before further use
 	PreviousSurfaces.Empty();
 	
 	
 	// from generated points find shortest path
 	TArray<FSANSurfaceHitResult> RawShortSurfaceHitResults;
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(AnySurfaceNav::ShortDistanceFiltering)
 #if SAN_WITH_DEBUG
-	if (SAN::Library::Debug::DebugDisableShortPathFiltering == 0)
-	{
-		KeepShortestDistancePoints(World, AnySurfaceNavSettings, RawSurfaceHitResults, RawShortSurfaceHitResults);
-	}
-	else
-	{
-		// since we are not calling KeepShortestDistancePoints we have to copy over the results like nothing was removed
-		RawShortSurfaceHitResults = RawSurfaceHitResults;
-	}
+		if (SAN::Library::Debug::DebugDisableShortPathFiltering == 0)
+		{
+			KeepShortestDistancePoints(World, AnySurfaceNavSettings, RawSurfaceHitResults, RawShortSurfaceHitResults);
+		}
+		else
+		{
+			// since we are not calling KeepShortestDistancePoints we have to copy over the results like nothing was removed
+			RawShortSurfaceHitResults = RawSurfaceHitResults;
+		}
 #else 
-	KeepShortestDistancePoints(World, AnySurfaceNavSettings, RawSurfaceHitResults, RawShortSurfaceHitResults);
+		KeepShortestDistancePoints(World, AnySurfaceNavSettings, RawSurfaceHitResults, RawShortSurfaceHitResults);
 #endif
-	
+	}
 	
 	// try to clean the path if there is a big distance between found surfaces points
 	// reset vars
 	FillGapsLoopCount = 0;
-	
-#if SAN_WITH_DEBUG
-	if (SAN::Library::Debug::DebugDisableFillGaps == 0)
 	{
-		const bool bFilledGaps = FillGaps(World, AnySurfaceNavSettings, PreviousSurfaces, RawShortSurfaceHitResults);
-	}
+		TRACE_CPUPROFILER_EVENT_SCOPE(AnySurfaceNav::FillGapsFiltering)
+#if SAN_WITH_DEBUG
+		if (SAN::Library::Debug::DebugDisableFillGaps == 0)
+		{
+			const bool bFilledGaps = FillGaps(World, AnySurfaceNavSettings, PreviousSurfaces, RawShortSurfaceHitResults);
+		}
 #else 
-	const bool bFilledGaps = FillGaps(World, AnySurfaceNavSettings, PreviousSurfaces, RawShortSurfaceHitResults);
+		const bool bFilledGaps = FillGaps(World, AnySurfaceNavSettings, PreviousSurfaces, RawShortSurfaceHitResults);
 #endif
-	
-	
-	// remove points that are to close with similar normal
-	int32 ComparedSourceSurfaceIndex = 0;
-	int32 ComparedNextSourceSurfaceIndex = 1;
-	while (ComparedSourceSurfaceIndex < RawShortSurfaceHitResults.Num() - 1)
-	{
-#if SAN_WITH_DEBUG
-		if (SAN::Library::Debug::DebugDisableDistanceNormalFiltering > 0)
-		{
-			break;
-		}
-#endif
-		
-		const auto& RawSurfaceHit = RawShortSurfaceHitResults[ComparedSourceSurfaceIndex];
-		const auto& NextRawSurfaceHit = RawShortSurfaceHitResults[ComparedNextSourceSurfaceIndex];
-		
-		// check distance
-		const float DistanceToNextPoint = FVector::Dist(RawSurfaceHit.HitLocation, NextRawSurfaceHit.HitLocation);
-		if (DistanceToNextPoint < AnySurfaceNavSettings->CleanUpPathPointDistanceThreshold)
-		{
-			const float NormalDiff = FVector::DotProduct(RawSurfaceHit.HitNormal, NextRawSurfaceHit.HitNormal);
-			if (NormalDiff >= AnySurfaceNavSettings->CleanUpPathPointNormalThreshold)
-			{
-#if SAN_WITH_DEBUG
-				if (SAN::Library::Debug::DebugDisplayFindAnySurfacePath > 1)
-				{
-					FU::Draw::Advanced::DrawDebugSphere(
-						World,
-						NextRawSurfaceHit.HitLocation,
-						20,
-						FColor::Red,
-						SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
-					);
-				}
-#endif
-				RawShortSurfaceHitResults.RemoveAt(ComparedNextSourceSurfaceIndex);
-				
-				// keep same source point, go next
-				ComparedNextSourceSurfaceIndex++;
-				continue;
-			}
-		}
-		
-		// we keep the next point, make it source
-		ComparedSourceSurfaceIndex++;
-		ComparedNextSourceSurfaceIndex = ComparedSourceSurfaceIndex + 1;
 	}
+	
+	// TODO: remove and keep only KeepShortestDistancePoints ?
+	// remove points that are to close with similar normal
+	/*{
+		TRACE_CPUPROFILER_EVENT_SCOPE(AnySurfaceNav::ShortDistanceFiltering)
+		
+		int32 ComparedSourceSurfaceIndex = 0;
+		int32 ComparedNextSourceSurfaceIndex = 1;
+		while (ComparedSourceSurfaceIndex < RawShortSurfaceHitResults.Num() - 1)
+		{
+#if SAN_WITH_DEBUG
+			if (SAN::Library::Debug::DebugDisableDistanceNormalFiltering > 0)
+			{
+				break;
+			}
+#endif
+		
+			const auto& RawSurfaceHit = RawShortSurfaceHitResults[ComparedSourceSurfaceIndex];
+			const auto& NextRawSurfaceHit = RawShortSurfaceHitResults[ComparedNextSourceSurfaceIndex];
+		
+			// check distance
+			const float DistanceToNextPoint = FVector::Dist(RawSurfaceHit.HitLocation, NextRawSurfaceHit.HitLocation);
+			if (DistanceToNextPoint < AnySurfaceNavSettings->CleanUpPathPointDistanceThreshold)
+			{
+				const float NormalDiff = FVector::DotProduct(RawSurfaceHit.HitNormal, NextRawSurfaceHit.HitNormal);
+				if (NormalDiff >= AnySurfaceNavSettings->CleanUpPathPointNormalThreshold)
+				{
+#if SAN_WITH_DEBUG
+					if (SAN::Library::Debug::DebugDisplayFindAnySurfacePath > 1)
+					{
+						FU::Draw::Advanced::DrawDebugSphere(
+							World,
+							NextRawSurfaceHit.HitLocation,
+							20,
+							FColor::Red,
+							SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
+						);
+					}
+#endif
+					RawShortSurfaceHitResults.RemoveAt(ComparedNextSourceSurfaceIndex);
+				
+					// keep same source point, go next
+					ComparedNextSourceSurfaceIndex++;
+					continue;
+				}
+			}
+		
+			// we keep the next point, make it source
+			ComparedSourceSurfaceIndex++;
+			ComparedNextSourceSurfaceIndex = ComparedSourceSurfaceIndex + 1;
+		}
+	}*/
 	
 	// save results
 	Result.SurfaceHitResults = RawShortSurfaceHitResults;
@@ -252,7 +267,8 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 				HitResult.HitLocation + FVector(0, 0, 20),
 				FString::Printf(TEXT("%i"), i),
 				FColor::Orange,
-				SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
+				SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime,
+				2
 			);
 			
 			FU::Draw::Advanced::DrawDebugSphere(
@@ -473,7 +489,7 @@ bool USANAnySurfaceNavLibrary::GetBestSurfaceInternal(UWorld* World, const USANA
 				World,
 				PointLocation,
 				5,
-				FColor::Orange,
+				HitResults.Num() > 1 ? FColor::Red : FColor::Orange,
 				SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
 			);
 			
@@ -481,7 +497,7 @@ bool USANAnySurfaceNavLibrary::GetBestSurfaceInternal(UWorld* World, const USANA
 				World,
 				PointLocation,
 				Radius,
-				FColor::Orange,
+				HitResults.Num() > 1 ? FColor::Red : FColor::Orange,
 				SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
 			);
 		}
@@ -607,7 +623,7 @@ bool USANAnySurfaceNavLibrary::FillGaps(UWorld* World, const USANAnySurfaceNavSe
 				FU::Draw::Advanced::DrawDebugSolidLine(World,
 				   RawSurfaceHit.HitLocation,
 				   NextRawSurfaceHit.HitLocation,
-				   FColor::White,
+				   FColor::Yellow,
 				   SAN::Library::Debug::DebugDisplayFindAnySurfacePathTime
 			   );
 			}
