@@ -3,7 +3,7 @@
 #include "Core/SANCrawlerMovementComponent.h"
 #include "Core/SANAnySurfaceNavLibrary.h"
 #include "Data/SANAnySurfaceNavSettings.h"
-#include "Data/SANCore.h"
+#include "Core/SANCore.h"
 #if SAN_WITH_DEBUG
 #include "Draw/FUDraw.h"
 #endif

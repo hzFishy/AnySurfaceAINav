@@ -49,22 +49,28 @@ public:
 	float SurfaceCollisionSphereMaxRadius;
 	
 	/** 
-	 *  When doing subdivisions, what distance should be used.
+	 *  When doing subdivisions, what distance should be used when spliting.
 	 */
 	UPROPERTY(EditAnywhere, Config, Category="Path|Subdivisions", meta=(UIMin=0, ClampMin=0))
 	float MinDistanceBetweenSubdivisions;
 	
-	/**
-	 * If two points are far away we will fill the gab (recursif).
+	/** 
+	 *  When doing subdivisions points must be close in height.
 	 */
-	UPROPERTY(EditAnywhere, Config, Category="Path|Gaps", meta=(UIMin=0, ClampMin=0))
-	float GabsMaxDistanceBetweenPoints;
+	UPROPERTY(EditAnywhere, Config, Category="Path|Subdivisions", meta=(UIMin=0, ClampMin=0))
+	float SubdivisionsMaxHeightDifference;
 	
 	/**
-	 * When doing subdivisions from filed gabs, what distance should be used.
+	 * If two points are far away we will fill the gap (recursive).
 	 */
 	UPROPERTY(EditAnywhere, Config, Category="Path|Gaps", meta=(UIMin=0, ClampMin=0))
-	float GabsMinDistanceBetweenSubdivisions;
+	float GapsMaxDistanceBetweenPoints;
+	
+	/**
+	 * When doing subdivisions from filed gaps, what distance should be used.
+	 */
+	UPROPERTY(EditAnywhere, Config, Category="Path|Gaps", meta=(UIMin=0, ClampMin=0))
+	float GapsMinDistanceBetweenSubdivisions;
 	
 	/**
 	 * Used more for security reasons in case of edge cases where infinite loops can happen.

@@ -48,5 +48,5 @@ void FSANFindPathResult::SurfacesToPositions(TArray<FVector>& PositionsArray, fl
 
 bool FSANFindPathResult::IsEmpty() const
 {
-	return NavPathPoints.IsEmpty() && SurfaceHitResults.IsEmpty();
+	return SurfaceHitResults.IsEmpty();
 }

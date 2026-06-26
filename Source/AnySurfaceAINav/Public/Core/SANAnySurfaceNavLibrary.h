@@ -29,7 +29,9 @@ protected:
 
 	/** FilteredRawSurfaceHits will be edited */
 	static void KeepShortestDistancePoints(UWorld* World, const USANAnySurfaceNavSettings* Settings, const TArray<FSANSurfaceHitResult>& InRawSurfaceHits, TArray<FSANSurfaceHitResult>& OutFilteredRawSurfaceHits);
-
+	
+	static void FindAndInsertSubdivisions(UWorld* World, const USANAnySurfaceNavSettings* Settings, const TArray<FSANSurfaceHitResult>& InSurfaceHitResults, TArray<FSANSurfaceHitResult>& OutSurfaceHitResults);
+	
 	/** 
 	 *  
 	 *  @param RawSurfaceHits The actual surface hits path

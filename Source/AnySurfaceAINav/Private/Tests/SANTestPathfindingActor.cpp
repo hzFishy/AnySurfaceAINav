@@ -4,7 +4,7 @@
 
 #include "CPathVolume.h"
 #include "Core/SANAnySurfaceNavLibrary.h"
-#include "Data/SANCore.h"
+#include "Core/SANCore.h"
 #include "Draw/FUDraw.h"
 #include "Kismet/GameplayStatics.h"
 
