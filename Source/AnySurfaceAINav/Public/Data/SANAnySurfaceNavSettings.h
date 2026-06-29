@@ -49,6 +49,13 @@ public:
 	float SurfaceCollisionSphereMaxRadius;
 	
 	/** 
+	 *  When tracing to find surfaces, how much do we multiply the radius.
+	 *  By default 20%
+	 */
+	UPROPERTY(EditAnywhere, Config, Category="Path|Collision", meta=(UIMin=0, ClampMin=0))
+	float SurfaceCollisionSphereRadiusGrowMultiplier;
+	
+	/** 
 	 *  When doing subdivisions, what distance should be used when spliting.
 	 */
 	UPROPERTY(EditAnywhere, Config, Category="Path|Subdivisions", meta=(UIMin=0, ClampMin=0))

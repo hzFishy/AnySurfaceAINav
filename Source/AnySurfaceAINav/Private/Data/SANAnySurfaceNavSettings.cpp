@@ -9,6 +9,7 @@ USANAnySurfaceNavSettings::USANAnySurfaceNavSettings():
 	BlockSurfaceCollisionProfile("BlockAllDynamic"),
 	SurfaceCollisionSphereMinRadius(200),
 	SurfaceCollisionSphereMaxRadius(2000),
+	SurfaceCollisionSphereRadiusGrowMultiplier(0.2),
 	MinDistanceBetweenSubdivisions(150),
 	SubdivisionsMaxHeightDifference(30),
 	GapsMaxDistanceBetweenPoints(200),
