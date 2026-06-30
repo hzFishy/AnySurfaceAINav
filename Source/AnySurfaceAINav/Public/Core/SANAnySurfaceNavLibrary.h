@@ -4,6 +4,7 @@
 
 #include "Data/SANSurfaceTypes.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Core/SANCore.h"
 #include "SANAnySurfaceNavLibrary.generated.h"
 class USANAnySurfaceNavSettings;
 
@@ -22,20 +23,27 @@ public:
 	
 protected:
 	static int32 FillGapsLoopCount;
+#if SAN_WITH_DEBUG
+	static int32 FillGapsLoopCountDebug;
+#endif
 	
-	static bool GetBestSurface(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FVector PointLocation, float& Radius, const TArray<FSANSurfaceHitResult>& PreviousSurfaces, TArray<FSANSurfaceHitResult>& OutBestSurfaces);
+	static bool GetBestSurface(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FVector PointLocation, const FCollisionQueryParams& CollisionQueryParams, float& Radius, const FSANSurfaceHitResult& PreviousSurface, TArray<FSANSurfaceHitResult>& OutBestSurfaces);
 	
-	static bool GetBestSurfaceInternal(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FVector PointLocation, float& Radius, TArray<FHitResult>& HitResults);
+	static bool GetBestSurfaceInternal(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, const FVector PointLocation, float& Radius, TArray<FHitResult>& HitResults);
 	
-	static void RemoveSimilarPoints(UWorld* World, const USANAnySurfaceNavSettings* Settings, TArray<FSANSurfaceHitResult>& SurfacePoints);
+	static void RemoveSimilarPoints(UWorld* World, const USANAnySurfaceNavSettings* Settings, TArray<FSANSurfaceHitResult>& SurfacePoints, const FName VLogName);
 	
-	static void KeepShortestDistancePoints(UWorld* World, const USANAnySurfaceNavSettings* Settings, const TArray<FSANSurfaceHitResult>& InRawSurfaceHits, TArray<FSANSurfaceHitResult>& OutFilteredRawSurfaceHits);
+	static void KeepShortestDistancePoints(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, const TArray<FSANSurfaceHitResult>& InRawSurfaceHits, TArray<FSANSurfaceHitResult>& OutFilteredRawSurfaceHits);
 	
-	static void FindAndInsertSubdivisions(UWorld* World, const USANAnySurfaceNavSettings* Settings, const TArray<FSANSurfaceHitResult>& InSurfaceHitResults, TArray<FSANSurfaceHitResult>& OutSurfaceHitResults);
+	static bool IsLineBlocking(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, const FSANSurfaceHitResult& Start, const FSANSurfaceHitResult& End, float AgentRadius);
 	
 	/** 
 	 *  
 	 *  @param RawSurfaceHits The actual surface hits path
 	 */
-	static bool FillGaps(UWorld* World, const USANAnySurfaceNavSettings* Settings, TArray<FSANSurfaceHitResult>& PreviousSurfaces, TArray<FSANSurfaceHitResult>& RawSurfaceHits);
+	static bool FillGaps(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, TArray<FSANSurfaceHitResult>& RawSurfaceHits, TArray<FSANSurfaceHitResult>& SurfaceExtraPoints);
+	
+	static int32 FindBestInBetweenIndex(const FSANSurfaceHitResult& NewSurface, const TArray<FSANSurfaceHitResult>& Surfaces);
+	
+	static void MakeCollisionQueryParamsFromRequest(const FSANFindPathRequest& Request, FCollisionQueryParams& Params);
 };

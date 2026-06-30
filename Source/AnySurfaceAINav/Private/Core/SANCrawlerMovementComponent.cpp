@@ -87,9 +87,9 @@ void USANCrawlerMovementComponent::SetMovingComponent(USceneComponent* NewCompon
 
 void USANCrawlerMovementComponent::RequestPathFollow(FSANFindPathRequest Request)
 {
-	if (AgentRadiusOverride.IsSet())
+	if (AgentRadius > 0)
 	{
-		Request.AgentRadius = AgentRadiusOverride.GetValue();
+		Request.AgentRadius = AgentRadius;
 	}
 	
 	FSANFindPathResult FindPathResult;
@@ -144,9 +144,24 @@ void USANCrawlerMovementComponent::ProcessPathRequest(float DeltaTime)
 	}
 	
 	const FVector CurrentLocation = GetOwner()->GetActorLocation();
-	const auto& NexPoint = CurrentRequest.CachedPathResult.SurfaceHitResults[CurrentMoveIndex + 1];
-	const FVector TargetNextLocation = NexPoint.HitLocation + NexPoint.HitNormal * GroundHeightOffset;
-	const FVector Direction = TargetNextLocation - CurrentLocation;
+	const auto& NextPathPoint = CurrentRequest.CachedPathResult.SurfaceHitResults[CurrentMoveIndex + 1];
+	const FVector TargetNextPathLocation = NextPathPoint.HitLocation + NextPathPoint.HitNormal * GroundHeightOffset;
+	
+	FVector TargetLocation;
+	
+	// TODO: adjust location if next path point is unreachable
+	if (HasValidGround() && IsPointUnreachable(TargetNextPathLocation))
+	{
+		TargetLocation = GroundHitResult.ImpactPoint + GroundHitResult.ImpactNormal * GroundHeightOffset;
+	}
+	else
+	{
+		TargetLocation = TargetNextPathLocation;
+	}
+	
+	const FVector Direction = TargetLocation - CurrentLocation;
+	
+	// TODO: use GroundHitResult to snap to the real ground since the path isnt perfectly matching the floor
 	CalcVelocity(Direction.GetSafeNormal(), DeltaTime);
 	
 	ApplyVelocityAndRotation(DeltaTime);
@@ -154,10 +169,10 @@ void USANCrawlerMovementComponent::ProcessPathRequest(float DeltaTime)
 	UE_VLOG_LOCATION(this, "SANCrawlerMovement", Display, CurrentLocation, 2, FColor::Blue, TEXT("CurrLoc"));
 	UE_VLOG_SEGMENT_THICK(this, "SANCrawlerMovement", Warning, 
 		CurrentMoveIndex >= 0 ? CurrentRequest.CachedPathResult.SurfaceHitResults[CurrentMoveIndex].HitLocation : CurrentRequest.CachedPathRequest.StartLocation, 
-		TargetNextLocation, FColor::Red, 10, TEXT_EMPTY
+		TargetNextPathLocation, FColor::Red, 10, TEXT_EMPTY
 	);
 	
-	if (IsCloseEnoughToLocation(TargetNextLocation))
+	if (IsCloseEnoughToLocation(TargetNextPathLocation))
 	{
 		CurrentMoveIndex++;
 	}
@@ -282,6 +297,20 @@ void USANCrawlerMovementComponent::ApplyVelocityAndRotation(float DeltaTime)
 	
 	// Finalize
 	MovingComponent->ComponentVelocity = MovementVelocity;
+}
+
+bool USANCrawlerMovementComponent::IsPointUnreachable(FVector Location) const
+{
+	FHitResult HitResult;
+	
+	const bool bHit = GetWorld()->SweepSingleByProfile(
+		HitResult,
+		Location, Location, FQuat::Identity,
+		GetDefault<USANAnySurfaceNavSettings>()->BlockSurfaceCollisionProfile.Name,
+		FCollisionShape::MakeSphere(AgentRadius * 0.9)
+	);
+	
+	return bHit;
 }
 
 bool USANCrawlerMovementComponent::IsExceedingMaxSpeed(float MaxSpeed) const

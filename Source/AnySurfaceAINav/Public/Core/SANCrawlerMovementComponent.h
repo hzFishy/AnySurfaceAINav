@@ -29,9 +29,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Agent")
 	bool bAutoSetRootComponentToOwningActorRoot;
 	
-	/** Optional agent radius to use in given request */
+	/** Agent radius to use in given request, if 0 will not be used */
 	UPROPERTY(EditAnywhere, Category="SAN|Agent", meta=(ClampMin="0", UIMin="0"))
-	TOptional<float> AgentRadiusOverride;
+	float AgentRadius;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Agent", meta=(ClampMin="0", UIMin="0", Units="cm"))
 	float DistanceOverlap;
@@ -127,6 +127,8 @@ protected:
 	void CalcVelocity(const FVector& Direction, float DeltaTime);
 	
 	void ApplyVelocityAndRotation(float DeltaTime);
+	
+	bool IsPointUnreachable(FVector Location) const;
 	
 	
 	/*----------------------------------------------------------------------------

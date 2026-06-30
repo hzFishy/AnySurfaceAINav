@@ -61,12 +61,6 @@ public:
 	UPROPERTY(EditAnywhere, Config, Category="Path|Subdivisions", meta=(UIMin=0, ClampMin=0))
 	float MinDistanceBetweenSubdivisions;
 	
-	/** 
-	 *  When doing subdivisions points must be close in height.
-	 */
-	UPROPERTY(EditAnywhere, Config, Category="Path|Subdivisions", meta=(UIMin=0, ClampMin=0))
-	float SubdivisionsMaxHeightDifference;
-	
 	/**
 	 * If two points are far away we will fill the gap (recursive).
 	 */
@@ -86,18 +80,20 @@ public:
 	int32 MaxFillGapsLoopCount;
 	
 	/** 
-	 *  When doing distance based filtering to remove points, this is used as the maximum height difference there can be between two points.
-	 */
-	UPROPERTY(EditAnywhere, Config, Category="Path|Short", meta=(UIMin=0, ClampMin=0))
-	float ShortFilteringMaxHeightDiff;
-	
-	/** 
 	 *  If surface points are close enough only one will be kept.
 	 *  
 	 *  See also CleanUpPathPointNormalThreshold.
 	 */
 	UPROPERTY(EditAnywhere, Config, Category="Path|CleanUp", meta=(UIMin=0, ClampMin=0))
 	float CleanUpPathPointDistanceThreshold;
+	
+	/** 
+	 *  If surface points are close enough only one will be kept.
+	 *  
+	 *  Ignores CleanUpPathPointNormalThreshold, will be removed anyways.
+	 */
+	UPROPERTY(EditAnywhere, Config, Category="Path|CleanUp", meta=(UIMin=0, ClampMin=0))
+	float CleanUpPathPointDistanceHardThreshold;
 	
 	/**
 	 * If surface points normal are to similar and close only one will be kept.

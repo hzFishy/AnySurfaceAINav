@@ -11,12 +11,11 @@ USANAnySurfaceNavSettings::USANAnySurfaceNavSettings():
 	SurfaceCollisionSphereMaxRadius(2000),
 	SurfaceCollisionSphereRadiusGrowMultiplier(0.2),
 	MinDistanceBetweenSubdivisions(150),
-	SubdivisionsMaxHeightDifference(30),
 	GapsMaxDistanceBetweenPoints(200),
 	GapsMinDistanceBetweenSubdivisions(150),
 	MaxFillGapsLoopCount(5),
-	ShortFilteringMaxHeightDiff(10),
 	CleanUpPathPointDistanceThreshold(50),
+	CleanUpPathPointDistanceHardThreshold(5),
 	CleanUpPathPointNormalThreshold(0.8)
 {}
 

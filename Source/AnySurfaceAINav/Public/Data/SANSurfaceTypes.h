@@ -13,6 +13,7 @@ struct ANYSURFACEAINAV_API FSANSurfaceHitResult
 	
 	FSANSurfaceHitResult(const FHitResult& HitResult);
 	
+	bool operator==(const FSANSurfaceHitResult& Other) const;
 	
 	UPROPERTY(BlueprintReadOnly)
 	FVector HitLocation;
@@ -21,6 +22,8 @@ struct ANYSURFACEAINAV_API FSANSurfaceHitResult
 	FVector HitNormal;
 	
 	bool IsValid() const;
+	
+	void Reset();
 };
 
 USTRUCT(BlueprintType, DisplayName="SAN Find Path Request")
@@ -41,6 +44,15 @@ struct ANYSURFACEAINAV_API FSANFindPathRequest
 	
 	UPROPERTY(BlueprintReadWrite)
 	float AgentRadius;
+	
+	UPROPERTY(BlueprintReadWrite)
+	bool bTraceComplex;
+	
+	UPROPERTY(BlueprintReadWrite)
+	TArray<TObjectPtr<AActor>> ActorsToIgnore;
+	
+	UPROPERTY(BlueprintReadWrite)
+	TArray<TObjectPtr<UPrimitiveComponent>> ComponentsToIgnore;
 	
 	bool IsValid() const;
 };

@@ -14,17 +14,28 @@ FSANSurfaceHitResult::FSANSurfaceHitResult(const FHitResult& HitResult):
 	HitNormal(HitResult.ImpactNormal)
 {}
 
+bool FSANSurfaceHitResult::operator==(const FSANSurfaceHitResult& Other) const
+{
+	return HitLocation.Equals(Other.HitLocation, 1) && HitNormal.Equals(Other.HitNormal, 1);
+}
 
 bool FSANSurfaceHitResult::IsValid() const
 {
 	return !HitLocation.IsZero() && !HitNormal.IsZero();
 }
 
+void FSANSurfaceHitResult::Reset()
+{
+	HitLocation = FVector::ZeroVector;
+	HitNormal = FVector::ZeroVector;
+}
+
 FSANFindPathRequest::FSANFindPathRequest(): 
 	WorldContextObject(nullptr), 
 	StartLocation(FVector::ZeroVector), 
 	EndLocation(FVector::ZeroVector), 
-	AgentRadius(-1)
+	AgentRadius(-1),
+	bTraceComplex(true)
 {}
 
 bool FSANFindPathRequest::IsValid() const
