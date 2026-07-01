@@ -108,10 +108,10 @@ public:
 	void SetMovingComponent(USceneComponent* NewComponent);
 	
 	UFUNCTION(BlueprintCallable, Category="SAN|Movement")
-	void RequestPathFollow(FSANFindPathRequest Request);
+	void RequestPathFollow(const FSANFindPathRequest& Request);
 	
 	UFUNCTION(BlueprintCallable, Category="SAN|Movement")
-	void RequestPathFollowFromTo(const FVector& StartLocation, const FVector& EndLocation, float AgentRadius = -1);
+	void RequestPathFollowFromTo(const FVector& StartLocation, const FVector& EndLocation, float AgentRadiusOverride = -1);
 	
 	UFUNCTION(BlueprintCallable, Category="SAN|Movement")
 	void FollowPath(const FSANMovementPathRequest& Request);

@@ -28,6 +28,7 @@ namespace SAN::Movement
 	----------------------------------------------------------------------------*/
 USANCrawlerMovementComponent::USANCrawlerMovementComponent():
 	bAutoSetRootComponentToOwningActorRoot(true),
+	AgentRadius(10),
 	DistanceOverlap(30),
 	GroundDetectionDistance(50),
 	GroundHeightOffset(5),
@@ -85,13 +86,8 @@ void USANCrawlerMovementComponent::SetMovingComponent(USceneComponent* NewCompon
 	MovingComponent = NewComponent;
 }
 
-void USANCrawlerMovementComponent::RequestPathFollow(FSANFindPathRequest Request)
+void USANCrawlerMovementComponent::RequestPathFollow(const FSANFindPathRequest& Request)
 {
-	if (AgentRadius > 0)
-	{
-		Request.AgentRadius = AgentRadius;
-	}
-	
 	FSANFindPathResult FindPathResult;
 	USANAnySurfaceNavLibrary::FindAnySurfacePathSync(Request, FindPathResult);
 	
@@ -101,13 +97,13 @@ void USANCrawlerMovementComponent::RequestPathFollow(FSANFindPathRequest Request
 	FollowPath(MoveRequest);
 }
 
-void USANCrawlerMovementComponent::RequestPathFollowFromTo(const FVector& StartLocation, const FVector& EndLocation, float AgentRadius)
+void USANCrawlerMovementComponent::RequestPathFollowFromTo(const FVector& StartLocation, const FVector& EndLocation, float AgentRadiusOverride)
 {
 	FSANFindPathRequest Request;
 	Request.WorldContextObject = GetWorld();
 	Request.StartLocation = StartLocation;
 	Request.EndLocation = EndLocation;
-	Request.AgentRadius = AgentRadius;
+	Request.AgentRadius = AgentRadiusOverride > 0 ? AgentRadiusOverride : AgentRadius;
 	
 	RequestPathFollow(Request);
 }
@@ -149,8 +145,13 @@ void USANCrawlerMovementComponent::ProcessPathRequest(float DeltaTime)
 	
 	FVector TargetLocation;
 	
+	// TODO: if to far from ground then calc a snappy pos
+	if (!HasValidGround()) // use GroundHeightOffset
+	{
+		
+	}
 	// TODO: adjust location if next path point is unreachable
-	if (HasValidGround() && IsPointUnreachable(TargetNextPathLocation))
+	else if (HasValidGround() && IsPointUnreachable(TargetNextPathLocation + (NextPathPoint.HitNormal * CurrentRequest.CachedPathRequest.AgentRadius * 1.2)))
 	{
 		TargetLocation = GroundHitResult.ImpactPoint + GroundHitResult.ImpactNormal * GroundHeightOffset;
 	}
@@ -302,6 +303,10 @@ void USANCrawlerMovementComponent::ApplyVelocityAndRotation(float DeltaTime)
 bool USANCrawlerMovementComponent::IsPointUnreachable(FVector Location) const
 {
 	FHitResult HitResult;
+	
+	FCollisionQueryParams QueryParams;
+	QueryParams.bTraceComplex = true;
+	QueryParams.AddIgnoredActor(GetOwner());
 	
 	const bool bHit = GetWorld()->SweepSingleByProfile(
 		HitResult,
