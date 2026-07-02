@@ -126,7 +126,7 @@ protected:
 	
 	void CalcVelocity(const FVector& Direction, float DeltaTime);
 	
-	void ApplyVelocityAndRotation(float DeltaTime);
+	void ApplyVelocityAndRotation(float DeltaTime, const FVector& IntermediatePathNormal);
 	
 	bool IsPointUnreachable(FVector Location) const;
 	

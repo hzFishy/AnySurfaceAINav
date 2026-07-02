@@ -1,6 +1,8 @@
 // By hzFishy - 2026 - Do whatever you want with it.
 
 #include "Core/SANCrawlerMovementComponent.h"
+
+#include "KismetTraceUtils.h"
 #include "Core/SANAnySurfaceNavLibrary.h"
 #include "Data/SANAnySurfaceNavSettings.h"
 #include "Core/SANCore.h"
@@ -138,34 +140,36 @@ void USANCrawlerMovementComponent::ProcessPathRequest(float DeltaTime)
 		bProcessingPathRequest = false;
 		return;
 	}
+	const FVector UpVector = MovingComponent->GetUpVector();
 	
 	const FVector CurrentLocation = GetOwner()->GetActorLocation();
+	const FSANSurfaceHitResult* CurrentPathPointPtr = CurrentMoveIndex >= 0 ? &CurrentRequest.CachedPathResult.SurfaceHitResults[CurrentMoveIndex] : nullptr;
 	const auto& NextPathPoint = CurrentRequest.CachedPathResult.SurfaceHitResults[CurrentMoveIndex + 1];
 	const FVector TargetNextPathLocation = NextPathPoint.HitLocation + NextPathPoint.HitNormal * GroundHeightOffset;
 	
-	FVector TargetLocation;
+	FVector TargetLocation = TargetNextPathLocation;
 	
-	// TODO: if to far from ground then calc a snappy pos
-	if (!HasValidGround()) // use GroundHeightOffset
+	FU::Draw::DrawDebugDirectionalArrowFrame(GetWorld(), CurrentLocation, UpVector * 200, FColor::Cyan, 10);
+	
+	FU::Draw::Advanced::DrawDebugSphere(GetWorld(), TargetLocation, 10, FColor::Cyan, 1);
+	
+	const FVector Direction = (TargetLocation - CurrentLocation).GetSafeNormal();
+	
+	FVector IntermediatePathNormal;
+	if (CurrentPathPointPtr)
 	{
-		
-	}
-	// TODO: adjust location if next path point is unreachable
-	else if (HasValidGround() && IsPointUnreachable(TargetNextPathLocation + (NextPathPoint.HitNormal * CurrentRequest.CachedPathRequest.AgentRadius * 1.2)))
-	{
-		TargetLocation = GroundHitResult.ImpactPoint + GroundHitResult.ImpactNormal * GroundHeightOffset;
+		const float DistanceBetweenPoints = FVector::Distance(CurrentPathPointPtr->HitLocation, NextPathPoint.HitLocation);
+		const float DistanceTraveled = FVector::Distance(CurrentPathPointPtr->HitLocation, CurrentLocation);
+		IntermediatePathNormal = FMath::Lerp(CurrentPathPointPtr->HitNormal, NextPathPoint.HitNormal, DistanceTraveled / DistanceBetweenPoints);
 	}
 	else
 	{
-		TargetLocation = TargetNextPathLocation;
+		IntermediatePathNormal = NextPathPoint.HitNormal;
 	}
 	
-	const FVector Direction = TargetLocation - CurrentLocation;
+	CalcVelocity(Direction, DeltaTime);
 	
-	// TODO: use GroundHitResult to snap to the real ground since the path isnt perfectly matching the floor
-	CalcVelocity(Direction.GetSafeNormal(), DeltaTime);
-	
-	ApplyVelocityAndRotation(DeltaTime);
+	ApplyVelocityAndRotation(DeltaTime, IntermediatePathNormal);
 	
 	UE_VLOG_LOCATION(this, "SANCrawlerMovement", Display, CurrentLocation, 2, FColor::Blue, TEXT("CurrLoc"));
 	UE_VLOG_SEGMENT_THICK(this, "SANCrawlerMovement", Warning, 
@@ -265,7 +269,7 @@ void USANCrawlerMovementComponent::CalcVelocity(const FVector& Direction, float 
 	MovementVelocity = MovementVelocity.GetClampedToMaxSize(NewMaxSpeed);
 }
 
-void USANCrawlerMovementComponent::ApplyVelocityAndRotation(float DeltaTime)
+void USANCrawlerMovementComponent::ApplyVelocityAndRotation(float DeltaTime, const FVector& IntermediatePathNormal)
 {
 	// Move actor
 	FVector Delta = MovementVelocity * DeltaTime;
@@ -275,18 +279,11 @@ void USANCrawlerMovementComponent::ApplyVelocityAndRotation(float DeltaTime)
 		const FVector OldLocation = MovingComponent->GetComponentLocation();
 		FQuat Rotation;
 		
-		if (HasValidGround())
-		{
-			Rotation = FindActorAlignmentRotation(
-				MovingComponent->GetComponentRotation().Quaternion(), 
-				FVector(0, 0, 1), 
-				GroundHitResult.ImpactNormal
-			);
-		}
-		else
-		{
-			Rotation = MovingComponent->GetComponentRotation().Quaternion();
-		}
+		Rotation = FindActorAlignmentRotation(
+			MovingComponent->GetComponentRotation().Quaternion(), 
+			FVector(0, 0, 1), 
+			IntermediatePathNormal
+		);
 		
 		MovingComponent->MoveComponent(Delta, Rotation, false);
 		
