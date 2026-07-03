@@ -2,8 +2,8 @@
 
 #pragma once
 
-#include "Data/SANSurfaceTypes.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "Data/SANSurfaceTypes.h"
 #include "Core/SANCore.h"
 #include "SANAnySurfaceNavLibrary.generated.h"
 class USANAnySurfaceNavSettings;
@@ -31,9 +31,10 @@ protected:
 	
 	static bool GetBestSurfaceInternal(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, const FVector PointLocation, float& Radius, TArray<FHitResult>& HitResults);
 	
-	static void RemoveSimilarPoints(UWorld* World, const USANAnySurfaceNavSettings* Settings, TArray<FSANSurfaceHitResult>& SurfacePoints, const FName VLogName);
+	static void RemoveSimilarPoints(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, TArray<FSANSurfaceHitResult>& SurfacePoints, const FName VLogName = NAME_None);
 	
-	static void KeepShortestDistancePoints(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, const TArray<FSANSurfaceHitResult>& InRawSurfaceHits, TArray<FSANSurfaceHitResult>& OutFilteredRawSurfaceHits);
+	static void KeepShortestDistancePoints(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, const TArray<FSANSurfaceHitResult>& InRawSurfaceHits, TArray<FSANSurfaceHitResult>& OutFilteredRawSurfaceHits, const FName VLogName = NAME_None);
+
 	
 	static bool IsLineBlocking(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, const FSANSurfaceHitResult& Start, const FSANSurfaceHitResult& End, FHitResult& OutHitResult);
 	static bool IsPointBlocked(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, const FVector& PointLocation, FHitResult& OutHitResult);

@@ -31,13 +31,14 @@ namespace SAN::Movement
 USANCrawlerMovementComponent::USANCrawlerMovementComponent():
 	bAutoSetRootComponentToOwningActorRoot(true),
 	AgentRadius(10),
-	DistanceOverlap(30),
+	DistanceOverlap(5),
 	GroundDetectionDistance(50),
 	GroundHeightOffset(5),
 	MaxMovementSpeed(300),
 	Acceleration(4000),
 	Deceleration(8000),
 	TurningBoost(8),
+	FloorAlignmentInterpSpeed(200),
 	MovementFlags(MOVECOMP_NoFlags),
 	bProcessingPathRequest(false),
 	CurrentMoveIndex(-1)
@@ -117,6 +118,7 @@ void USANCrawlerMovementComponent::FollowPath(const FSANMovementPathRequest& Req
 	CurrentRequest = Request;
 	bProcessingPathRequest = true;
 	CurrentMoveIndex = -1;
+	LastRotation = MovingComponent->GetComponentRotation();
 	SetComponentTickEnabled(true);
 	
 	UE_VLOG_SPHERE(this, "SANCrawlerMovement", Display, Request.CachedPathRequest.StartLocation, 50, FColor::Blue, TEXT("StartLoc"));
@@ -147,13 +149,11 @@ void USANCrawlerMovementComponent::ProcessPathRequest(float DeltaTime)
 	const auto& NextPathPoint = CurrentRequest.CachedPathResult.SurfaceHitResults[CurrentMoveIndex + 1];
 	const FVector TargetNextPathLocation = NextPathPoint.HitLocation + NextPathPoint.HitNormal * GroundHeightOffset;
 	
-	FVector TargetLocation = TargetNextPathLocation;
-	
 	FU::Draw::DrawDebugDirectionalArrowFrame(GetWorld(), CurrentLocation, UpVector * 200, FColor::Cyan, 10);
 	
-	FU::Draw::Advanced::DrawDebugSphere(GetWorld(), TargetLocation, 10, FColor::Cyan, 1);
+	FU::Draw::Advanced::DrawDebugSphere(GetWorld(), TargetNextPathLocation, 10, FColor::Cyan, 1);
 	
-	const FVector Direction = (TargetLocation - CurrentLocation).GetSafeNormal();
+	const FVector Direction = (TargetNextPathLocation - CurrentLocation).GetSafeNormal();
 	
 	FVector IntermediatePathNormal;
 	if (CurrentPathPointPtr)
@@ -161,6 +161,10 @@ void USANCrawlerMovementComponent::ProcessPathRequest(float DeltaTime)
 		const float DistanceBetweenPoints = FVector::Distance(CurrentPathPointPtr->HitLocation, NextPathPoint.HitLocation);
 		const float DistanceTraveled = FVector::Distance(CurrentPathPointPtr->HitLocation, CurrentLocation);
 		IntermediatePathNormal = FMath::Lerp(CurrentPathPointPtr->HitNormal, NextPathPoint.HitNormal, DistanceTraveled / DistanceBetweenPoints);
+		
+		FU::Draw::DrawDebugDirectionalArrowFrame(GetWorld(), CurrentPathPointPtr->HitLocation, CurrentPathPointPtr->HitNormal * 200, FColor::Green, 10);
+		FU::Draw::DrawDebugDirectionalArrowFrame(GetWorld(), NextPathPoint.HitLocation, NextPathPoint.HitNormal * 200, FColor::Yellow, 10);
+		FU::Draw::DrawDebugDirectionalArrowFrame(GetWorld(), CurrentLocation, IntermediatePathNormal * 200, FColor::Red, 10);
 	}
 	else
 	{
@@ -169,7 +173,7 @@ void USANCrawlerMovementComponent::ProcessPathRequest(float DeltaTime)
 	
 	CalcVelocity(Direction, DeltaTime);
 	
-	ApplyVelocityAndRotation(DeltaTime, IntermediatePathNormal);
+	ApplyVelocityAndRotation(DeltaTime, IntermediatePathNormal, Direction);
 	
 	UE_VLOG_LOCATION(this, "SANCrawlerMovement", Display, CurrentLocation, 2, FColor::Blue, TEXT("CurrLoc"));
 	UE_VLOG_SEGMENT_THICK(this, "SANCrawlerMovement", Warning, 
@@ -269,7 +273,7 @@ void USANCrawlerMovementComponent::CalcVelocity(const FVector& Direction, float 
 	MovementVelocity = MovementVelocity.GetClampedToMaxSize(NewMaxSpeed);
 }
 
-void USANCrawlerMovementComponent::ApplyVelocityAndRotation(float DeltaTime, const FVector& IntermediatePathNormal)
+void USANCrawlerMovementComponent::ApplyVelocityAndRotation(float DeltaTime, const FVector& IntermediatePathNormal, const FVector& IntermediateForward)
 {
 	// Move actor
 	FVector Delta = MovementVelocity * DeltaTime;
@@ -277,15 +281,22 @@ void USANCrawlerMovementComponent::ApplyVelocityAndRotation(float DeltaTime, con
 	if (!Delta.IsNearlyZero(1e-6f))
 	{
 		const FVector OldLocation = MovingComponent->GetComponentLocation();
-		FQuat Rotation;
-		
-		Rotation = FindActorAlignmentRotation(
+		const FQuat FloorRot = FindActorAlignmentRotation(
 			MovingComponent->GetComponentRotation().Quaternion(), 
 			FVector(0, 0, 1), 
 			IntermediatePathNormal
 		);
 		
-		MovingComponent->MoveComponent(Delta, Rotation, false);
+		FQuat Rotation = FRotationMatrix::MakeFromXZ(
+			IntermediateForward,
+			IntermediatePathNormal
+		).ToQuat();
+		
+		FRotator RotResult = FMath::RInterpConstantTo(LastRotation, Rotation.Rotator(), DeltaTime, FloorAlignmentInterpSpeed);
+		
+		LastRotation = RotResult;
+		
+		MovingComponent->MoveComponent(Delta, RotResult, false);
 		
 		// Update velocity
 		// We don't want position changes to vastly reverse our direction (which can happen due to penetration fixups etc)

@@ -30,7 +30,7 @@ protected:
 	bool bAutoSetRootComponentToOwningActorRoot;
 	
 	/** Agent radius to use in given request, if 0 will not be used */
-	UPROPERTY(EditAnywhere, Category="SAN|Agent", meta=(ClampMin="0", UIMin="0"))
+	UPROPERTY(EditAnywhere, Category="SAN|Agent", meta=(ClampMin="0", UIMin="0", Units="cm"))
 	float AgentRadius;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Agent", meta=(ClampMin="0", UIMin="0", Units="cm"))
@@ -43,15 +43,15 @@ protected:
 	float GroundHeightOffset;
 	
 	/** Speed in cm/s, can be dynamicly changed while already processing a path */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement", meta=(ClampMin="0", UIMin="0", Units="cm/s"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement", meta=(ClampMin="0", UIMin="0"))
 	float MaxMovementSpeed;
 	
 	/** Acceleration applied by input (rate of change of velocity) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement", meta=(ClampMin="0", UIMin="0"))
 	float Acceleration;
 	
 	/** Deceleration applied when there is no input (rate of change of velocity) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement", meta=(ClampMin="0", UIMin="0"))
 	float Deceleration;
 	
 	/**
@@ -61,6 +61,9 @@ protected:
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement", meta=(ClampMin="0", UIMin="0"))
 	float TurningBoost;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="SAN|Movement", meta=(ClampMin="0", UIMin="0"))
+	float FloorAlignmentInterpSpeed;
 	
 	
 	/////////////////////////////
@@ -85,6 +88,8 @@ protected:
 	
 	/** Latest ground hit result */
 	FHitResult GroundHitResult;
+	
+	FRotator LastRotation;
 	
 	
 	/*----------------------------------------------------------------------------
@@ -126,7 +131,7 @@ protected:
 	
 	void CalcVelocity(const FVector& Direction, float DeltaTime);
 	
-	void ApplyVelocityAndRotation(float DeltaTime, const FVector& IntermediatePathNormal);
+	void ApplyVelocityAndRotation(float DeltaTime, const FVector& IntermediatePathNormal, const FVector& IntermediateForward);
 	
 	bool IsPointUnreachable(FVector Location) const;
 	
