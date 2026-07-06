@@ -51,4 +51,8 @@ protected:
 	static void MakeCollisionQueryParamsFromRequest(const FSANFindPathRequest& Request, FCollisionQueryParams& Params);
 	
 	static void SmoothSegment(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, const FSANSurfaceHitResult& StartSurface, const FSANSurfaceHitResult& EndSurface, TArray<FSANSurfaceHitResult>& OutNewSurfaces);
+
+	static void RemoveSimilarPointsInArrays(const TArray<FSANSurfaceHitResult>& InContainer, TArray<FSANSurfaceHitResult>& FilteredContainer);
+	
+	static void ReorderPointsByDistance(const FVector& StartLocation, TArray<FSANSurfaceHitResult>& Points);
 };
