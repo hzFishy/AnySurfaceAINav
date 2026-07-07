@@ -6,9 +6,6 @@
 #include "Draw/FUColors.h"
 #include "Kismet/GameplayStatics.h"
 #include "Logging/FULogging.h"
-#if SAN_WITH_DEBUG
-#include "Draw/FUDraw.h"
-#endif
 
 
 namespace SAN::Library
@@ -34,6 +31,7 @@ namespace SAN::Library
 	}
 #endif
 	
+#if ENABLE_VISUAL_LOG
 	namespace VLog
 	{
 		inline FName RawCPathResult = "SANFindAnySurfacePathSync_1_Raw";
@@ -45,12 +43,17 @@ namespace SAN::Library
 		inline FName FillGapsSimilarPointsFiltering = "SANFindAnySurfacePathSync_3.1_FillGapsSimilarPointsFiltering";
 		inline FName FillGapsShortPathFiltering = "SANFindAnySurfacePathSync_3.2_FillGapsShortPathFiltering";
 		inline FName SmoothPass = "SANFindAnySurfacePathSync_4_SmoothPass";
+		inline FName SmoothPass_BlockingTest = "SANFindAnySurfacePathSync_4_SmoothPass_BlockingTest";
 		inline FName SmoothPassSimilarPointsFiltering = "SANFindAnySurfacePathSync_4.1_SmoothPassSimilarPointsFiltering";
+		inline FName SmoothPassBlockingFiltering = "SANFindAnySurfacePathSync_4.2_SmoothPassBlockingFiltering";
 		inline FName FinalPath = "SANFindAnySurfacePathSync_5_FinalPath";
 		
 		inline FName IsLineBlocking = "SANFindAnySurfacePathSync_IsLineBlocking";
 		inline FName IsPointBlocked = "SANFindAnySurfacePathSync_IsPointBlocked";
+		
+		static int32 DebugSmoothLoopCount = 0;
 	}
+#endif
 }
 
 int32 USANAnySurfaceNavLibrary::FillGapsLoopCount = 0;
@@ -260,7 +263,14 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 	
 	
 	// remove points that are to close with similar normal
-	RemoveSimilarPoints(World, AnySurfaceNavSettings, CollisionQueryParams, Request.AgentRadius, BasePassSurfacePoints, VLog::BasePassSimilarPointsFiltering);
+	RemoveSimilarPoints(
+		World, 
+		AnySurfaceNavSettings, 
+		CollisionQueryParams, 
+		Request.AgentRadius, 
+		BasePassSurfacePoints,
+		VLog::BasePassSimilarPointsFiltering
+	);
 	
 	// from generated points find shortest paths
 	TArray<FSANSurfaceHitResult> BasePassShortenSurfacePoints;
@@ -268,7 +278,15 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 #if SAN_WITH_DEBUG
 		if (SAN::Library::Debug::DebugDisableShortPathFiltering == 0)
 		{
-			KeepShortestDistancePoints(World, AnySurfaceNavSettings, CollisionQueryParams, Request.AgentRadius, BasePassSurfacePoints, BasePassShortenSurfacePoints, VLog::BasePassShortPathFiltering);
+			KeepShortestDistancePoints(
+				World, 
+				AnySurfaceNavSettings, 
+				CollisionQueryParams, 
+				Request.AgentRadius, 
+				BasePassSurfacePoints, 
+				BasePassShortenSurfacePoints, 
+				VLog::BasePassShortPathFiltering
+			);
 		}
 		else
 		{
@@ -276,7 +294,15 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 			BasePassShortenSurfacePoints = BasePassSurfacePoints;
 		}
 #else 
-		KeepShortestDistancePoints(World, AnySurfaceNavSettings, BasePassSurfacePoints, BasePassShortenSurfacePoints, VLog::BasePassShortPathFiltering);
+		KeepShortestDistancePoints(
+			World, 
+			AnySurfaceNavSettings, 
+			CollisionQueryParams, 
+			Request.AgentRadius, 
+			BasePassSurfacePoints, 
+			BasePassShortenSurfacePoints, 
+			VLog::BasePassShortPathFiltering
+		);
 #endif
 	}
 	
@@ -298,14 +324,35 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 #if SAN_WITH_DEBUG
 		if (SAN::Library::Debug::DebugDisableFillGaps == 0)
 		{
-			const bool bFilledGaps = FillGaps(World, AnySurfaceNavSettings, CollisionQueryParams, Request.AgentRadius, BasePassShortenSurfacePoints, BasePassSurfaceExtraPoints);
+			FillGaps(
+				World, 
+				AnySurfaceNavSettings, 
+				CollisionQueryParams,
+				Request.AgentRadius, 
+				BasePassShortenSurfacePoints, 
+				BasePassSurfaceExtraPoints
+			);
 		}
 #else 
-		const bool bFilledGaps = FillGaps(World, AnySurfaceNavSettings, CollisionQueryParams, PreviousSurface, BasePassShortenSurfacePoints, BasePassSurfaceExtraPoints);
+		FillGaps(
+			World, 
+			AnySurfaceNavSettings, 
+			CollisionQueryParams,
+			Request.AgentRadius, 
+			BasePassShortenSurfacePoints, 
+			BasePassSurfaceExtraPoints
+		);
 #endif
 		
 		// remove points that are to close with similar normal
-		RemoveSimilarPoints(World, AnySurfaceNavSettings, CollisionQueryParams, Request.AgentRadius, BasePassShortenSurfacePoints, VLog::FillGapsSimilarPointsFiltering);
+		RemoveSimilarPoints(
+			World, 
+			AnySurfaceNavSettings, 
+			CollisionQueryParams, 
+			Request.AgentRadius, 
+			BasePassShortenSurfacePoints, 
+			VLog::FillGapsSimilarPointsFiltering
+		);
 		
 		RemoveSimilarPointsInArrays(BasePassShortenSurfacePoints, BasePassSurfaceExtraPoints);
 		
@@ -321,7 +368,15 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 	#if SAN_WITH_DEBUG
 			if (SAN::Library::Debug::DebugDisableShortPathFiltering == 0)
 			{
-				KeepShortestDistancePoints(World, AnySurfaceNavSettings, CollisionQueryParams, Request.AgentRadius, BasePassShortenSurfacePoints, FillGapsFinalSurfaces, VLog::FillGapsShortPathFiltering);
+				KeepShortestDistancePoints(
+					World, 
+					AnySurfaceNavSettings, 
+					CollisionQueryParams, 
+					Request.AgentRadius, 
+					BasePassShortenSurfacePoints, 
+					FillGapsFinalSurfaces, 
+					VLog::FillGapsShortPathFiltering
+				);
 			}
 			else
 			{
@@ -329,38 +384,91 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 				FillGapsFinalSurfaces = BasePassShortenSurfacePoints;
 			}
 #else 
-			KeepShortestDistancePoints(World, AnySurfaceNavSettings, BasePassShortenSurfacePoints, FillGapsFinalSurfaces, VLog::FillGapsShortPathFiltering);
+			KeepShortestDistancePoints(
+				World, 
+				AnySurfaceNavSettings, 
+				CollisionQueryParams, 
+				Request.AgentRadius, 
+				BasePassShortenSurfacePoints, 
+				FillGapsFinalSurfaces, 
+				VLog::FillGapsShortPathFiltering
+			);
 #endif
 		}
 	}
 	
 	// extra: smooth the path by blending with the environment
 	{
-		TArray<FSANSurfaceHitResult> FoundNewSurfaces;
-		for (int32 SurfaceIndex = 0; SurfaceIndex < FillGapsFinalSurfaces.Num() - 1; ++SurfaceIndex)
-		{
-			const auto& CurrentSurface = FillGapsFinalSurfaces[SurfaceIndex];
-			const auto& NextSurface = FillGapsFinalSurfaces[SurfaceIndex + 1];
-			SmoothSegment(World, AnySurfaceNavSettings, CollisionQueryParams, Request.AgentRadius, CurrentSurface, NextSurface, FoundNewSurfaces);
-		}
+		TRACE_CPUPROFILER_EVENT_SCOPE(SAN::Smoothing)
 		
-		RemoveSimilarPointsInArrays(FillGapsFinalSurfaces, FoundNewSurfaces);
+		// TODO: maybe replace this big ugly while loop with something cleaner with a recursive function
 		
-		// fill in the points in-between
-		for (auto& NewSurface : FoundNewSurfaces)
+		// did we added points this iteration ?
+		bool bPointsAdded = true;
+		
+#if ENABLE_VISUAL_LOG
+		VLog::DebugSmoothLoopCount = 0;
+#endif
+		
+		while (bPointsAdded)
 		{
-			const int32 Index = FindBestInBetweenIndex(NewSurface, FillGapsFinalSurfaces);
-			FillGapsFinalSurfaces.EmplaceAt(Index + 1, NewSurface);
+			// iterate all points from start to end-1 until we could smooth everything
 			
-			UE_VLOG_LOCATION(World, VLog::SmoothPass, Display, 
-				NewSurface.HitLocation + (NewSurface.HitNormal * 10), 0, 
-				FColor::Black, TEXT("[%i]"), Index
+			TArray<FSANSurfaceHitResult> FoundNewSurfaces;
+			for (int32 SurfaceIndex = 0; SurfaceIndex < FillGapsFinalSurfaces.Num() - 1; ++SurfaceIndex)
+			{
+				const auto& CurrentSurface = FillGapsFinalSurfaces[SurfaceIndex];
+				const auto& NextSurface = FillGapsFinalSurfaces[SurfaceIndex + 1];
+				SmoothSegment(
+					World, 
+					AnySurfaceNavSettings, 
+					CollisionQueryParams, 
+					Request.AgentRadius, 
+					CurrentSurface,
+					NextSurface, 
+					FoundNewSurfaces
+				);
+			}
+			
+			// now we filter and insert FoundNewSurfaces
+			RemoveSimilarPointsInArrays(FillGapsFinalSurfaces, FoundNewSurfaces);
+			
+			for (auto& NewSurface : FoundNewSurfaces)
+			{
+				const int32 Index = FindBestInBetweenIndex(NewSurface, FillGapsFinalSurfaces);
+				FillGapsFinalSurfaces.EmplaceAt(Index + 1, NewSurface);
+			}
+			
+			// TODO: maybe instead only filter FoundNewSurfaces to save loop time
+			// remove points that are to close with similar normal
+			RemoveSimilarPoints(
+				World, 
+				AnySurfaceNavSettings, 
+				CollisionQueryParams, 
+				Request.AgentRadius, 
+				FillGapsFinalSurfaces, 
+				VLog::SmoothPassSimilarPointsFiltering
 			);
+			
+			// last filter: check if the agent can move between all the points
+			CheckAndClearUnusablePoints(
+				World, 
+				AnySurfaceNavSettings, 
+				CollisionQueryParams, 
+				Request.AgentRadius, 
+				FillGapsFinalSurfaces
+			);
+			
+			bPointsAdded = !FoundNewSurfaces.IsEmpty();
+			
+#if ENABLE_VISUAL_LOG
+			VLog::DebugSmoothLoopCount++;
+			if (VLog::DebugSmoothLoopCount > 5)
+			{
+				break;
+			}
+#endif
 		}
-		
-		// TODO: maybe instead only filter FoundNewSurfaces
-		// remove points that are to close with similar normal
-		RemoveSimilarPoints(World, AnySurfaceNavSettings, CollisionQueryParams, Request.AgentRadius, FillGapsFinalSurfaces, VLog::SmoothPassSimilarPointsFiltering);
 	}
 	
 	// save results
@@ -419,6 +527,7 @@ bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfac
 			if (HitResults.Num() > 1)
 			{
 				// remove hits blocked by geometry (if there is a blocking primitive between the nav point and the found surfaces)
+				// this is because we are using overlap sweep in GetBestSurfaceInternal to capture all possible surfaces
 				for (auto HitIt = HitResults.CreateIterator(); HitIt; ++HitIt)
 				{
 					FHitResult BlockHitResult;
@@ -1157,17 +1266,16 @@ int32 USANAnySurfaceNavLibrary::FindBestInBetweenIndex(const FSANSurfaceHitResul
 void USANAnySurfaceNavLibrary::MakeCollisionQueryParamsFromRequest(const FSANFindPathRequest& Request, FCollisionQueryParams& Params)
 {
 	Params.bTraceComplex = Request.bTraceComplex;
-	
 	Params.AddIgnoredActors(Request.ActorsToIgnore);
 	Params.AddIgnoredComponents(Request.ComponentsToIgnore);
 }
 
-void USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, 
+int32 USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, 
 	const FSANSurfaceHitResult& StartSurface, const FSANSurfaceHitResult& EndSurface, TArray<FSANSurfaceHitResult>& OutNewSurfaces)
 {
-	using namespace SAN::Library;
+	int32 OutNewSurfacesNum = 0;
 	
-	// check if collision between current point and next point for all using subdivisions
+	using namespace SAN::Library;
 	
 	// TODO: move to settings
 	constexpr float SubdivisionDistance = 30;
@@ -1179,11 +1287,13 @@ void USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurface
 	// we skip the "last" point in the subdivision since it will be the next nav point
 	const int32 NbOfSubdivisions = TotalNbOfSubdivisions - 1;
 	
+#if ENABLE_VISUAL_LOG
 	const FColor RandDebugColor = FU::Colors::PickRandomColor();
+#endif
 	
 	if (NbOfSubdivisions > 0)
 	{
-		// we cannot subdive between 2 points if there is a blocking collision
+		// we cannot subdive between 2 points if there is a blocking collision so we first check for that
 		FHitResult BlockingResult;
 		
 		const FVector BlockingStartLoc = StartSurface.HitLocation + (StartSurface.HitNormal * (AgentRadius + 5) );
@@ -1201,40 +1311,45 @@ void USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurface
 		const FColor DebugHitColor = bHit ? FColor::Red : FColor::Green;
 #endif
 		
-		UE_VLOG_SEGMENT_THICK(World, VLog::SmoothPass, Display,
+		UE_VLOG_SEGMENT_THICK(World, VLog::SmoothPass_BlockingTest, Display,
 			BlockingStartLoc, BlockingEndLoc, 
 			DebugHitColor, 5, TEXT_EMPTY
 		);
 		
-		UE_VLOG_WIRESPHERE(World, VLog::SmoothPass, Display, BlockingStartLoc, AgentRadius, DebugHitColor, TEXT_EMPTY);
-		UE_VLOG_WIRESPHERE(World, VLog::SmoothPass, Display, BlockingEndLoc, AgentRadius, DebugHitColor, TEXT_EMPTY);
+		UE_VLOG_WIRESPHERE(World, VLog::SmoothPass_BlockingTest, Display, BlockingStartLoc, AgentRadius, DebugHitColor, TEXT_EMPTY);
+		UE_VLOG_WIRESPHERE(World, VLog::SmoothPass_BlockingTest, Display, BlockingEndLoc, AgentRadius, DebugHitColor, TEXT_EMPTY);
 		
+		// there is a blocking collision, end here
 		if (bHit)
 		{
-			return;;
+			return 0;
 		}
 		
 		UE_VLOG_SEGMENT_THICK(World, VLog::SmoothPass, Display, 
 			StartSurface.HitLocation, EndSurface.HitLocation, 
-			RandDebugColor, 10, TEXT("Subdivs: %i"), NbOfSubdivisions
+			RandDebugColor, 10, TEXT("[%i] Subdivs: %i"), VLog::DebugSmoothLoopCount, NbOfSubdivisions
 		);
 		
+		// for each subdivision see if we are hitting a surface
 		for (int32 SubdivIndx = 1; SubdivIndx < NbOfSubdivisions + 1; ++SubdivIndx)
 		{
 			FHitResult HitResult;
 			const FVector SbdvLocation = FMath::Lerp(StartSurface.HitLocation, EndSurface.HitLocation, (float)SubdivIndx/TotalNbOfSubdivisions);
 			if (IsPointBlocked(World, Settings, CollisionQueryParams, AgentRadius, SbdvLocation, HitResult))
 			{
-				// TODO: maybe snap nearby point to hit surface
+				// we are colliding with a surface so it's a correct point for agent nav
 				
-				// we are colliding, check other points (nothing to do here for now)
+				// TODO: maybe snap nearby point to hit surface
 			}
 			else
 			{
-				// if nothing collides it means that the agent will be "floating" which isnt wanted
+				// if nothing collides it means that the agent will be "floating" in the air which isnt wanted since we always want the agent to use surfaces
 				// so we trace "down" to find a in-between surface
 				
+				// TODO: allow the agent to "jump" between gaps
+				
 				TArray<FSANSurfaceHitResult> BestSurfaceHits;
+				// set initial radius
 				float Radius = Settings->SurfaceCollisionSphereMinRadius;
 				
 				const FSANSurfaceHitResult& PreviousSurface = StartSurface;
@@ -1242,13 +1357,16 @@ void USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurface
 				{
 					// store the found surfaces and process them all afterwards since some found surfaces may not be between current start and end
 					OutNewSurfaces.Append(BestSurfaceHits);
+					OutNewSurfacesNum += BestSurfaceHits.Num();
 					
 #if ENABLE_VISUAL_LOG
-					for (auto& BestSurfaceHit : BestSurfaceHits)
+					for (int32 HitIndx = 0; HitIndx < BestSurfaceHits.Num(); ++HitIndx)
 					{
+						const auto& BestSurfaceHit = BestSurfaceHits[HitIndx];
+						
 						UE_VLOG_SPHERE(World, VLog::SmoothPass, Display, 
 							BestSurfaceHit.HitLocation, 20, 
-							RandDebugColor, TEXT_EMPTY
+							RandDebugColor, TEXT("[%i:%i:%i]"), VLog::DebugSmoothLoopCount, SubdivIndx, HitIndx
 						);
 					}
 #endif
@@ -1263,6 +1381,8 @@ void USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurface
 			RandDebugColor, 5, TEXT("Cannot subdiv")
 		);
 	}
+	
+	return OutNewSurfacesNum;
 }
 
 void USANAnySurfaceNavLibrary::RemoveSimilarPointsInArrays(const TArray<FSANSurfaceHitResult>& InContainer, TArray<FSANSurfaceHitResult>& FilteredContainer)
@@ -1276,10 +1396,74 @@ void USANAnySurfaceNavLibrary::RemoveSimilarPointsInArrays(const TArray<FSANSurf
 	}
 }
 
-void USANAnySurfaceNavLibrary::ReorderPointsByDistance(const FVector& StartLocation, TArray<FSANSurfaceHitResult>& Points)
+void USANAnySurfaceNavLibrary::CheckAndClearUnusablePoints(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, TArray<FSANSurfaceHitResult>& Points)
 {
-	Points.Sort([StartLocation] (const FSANSurfaceHitResult& A, const FSANSurfaceHitResult& B)
+	using namespace SAN::Library;
+	
+	int32 CurrentIndex = 0;
+	while (CurrentIndex < Points.Num() - 2)
 	{
-		return FVector::Distance(StartLocation, A.HitLocation) < FVector::Distance(StartLocation, B.HitLocation);
-	});
+		const FSANSurfaceHitResult& Surface = Points[CurrentIndex];
+		const FSANSurfaceHitResult& NextSurface = Points[CurrentIndex + 1];
+		const FSANSurfaceHitResult& N2Surface = Points[CurrentIndex + 2];
+		
+		UE_VLOG_SPHERE(World, VLog::SmoothPassBlockingFiltering, Display,
+			Surface.HitLocation, AgentRadius, FColor::Green, TEXT("[%i]"), CurrentIndex
+		);
+		
+		FHitResult BlockingResult;
+		
+		const FVector BlockingStartLoc = Surface.HitLocation + (Surface.HitNormal * (AgentRadius + 5) );
+		const FVector BlockingEndLoc = NextSurface.HitLocation + (NextSurface.HitNormal * (AgentRadius + 5));
+		
+		const bool bHit = World->SweepSingleByProfile(
+			BlockingResult, 
+			BlockingStartLoc, BlockingEndLoc, FQuat::Identity, 
+			Settings->BlockSurfaceCollisionProfile.Name, 
+			FCollisionShape::MakeSphere(AgentRadius),
+			CollisionQueryParams
+		);
+		
+#if ENABLE_VISUAL_LOG
+		const FColor DebugHitColor = bHit ? FColor::Red : FColor::Green;
+#endif
+		
+		UE_VLOG_SEGMENT_THICK(World, VLog::SmoothPassBlockingFiltering, Display,
+			BlockingStartLoc, BlockingEndLoc, 
+			DebugHitColor, 5, TEXT("[%i] -> [%i]"), CurrentIndex, CurrentIndex + 1
+		);
+		
+		UE_VLOG_WIRESPHERE(World, VLog::SmoothPassBlockingFiltering, Display, BlockingStartLoc, AgentRadius, DebugHitColor, TEXT_EMPTY);
+		UE_VLOG_WIRESPHERE(World, VLog::SmoothPassBlockingFiltering, Display, BlockingEndLoc, AgentRadius, DebugHitColor, TEXT_EMPTY);
+		
+		if (bHit)
+		{
+			// we can only remove N+1 point if there is no blocking connection with the future N+0 -> N+2
+			FHitResult BlockingResultN2;
+			
+			const FVector BlockingStartLocN2 = Surface.HitLocation + (Surface.HitNormal * (AgentRadius + 5) );
+			const FVector BlockingEndLocN2 = N2Surface.HitLocation + (N2Surface.HitNormal * (AgentRadius + 5));
+			
+			const bool bHitN2 = World->SweepSingleByProfile(
+				BlockingResultN2, 
+				BlockingStartLocN2, BlockingEndLocN2, FQuat::Identity, 
+				Settings->BlockSurfaceCollisionProfile.Name, 
+				FCollisionShape::MakeSphere(AgentRadius),
+				CollisionQueryParams
+			);
+			
+			if (!bHitN2)
+			{
+				UE_VLOG_SPHERE(World, VLog::SmoothPassBlockingFiltering, Display,
+					NextSurface.HitLocation, AgentRadius, FColor::Red, TEXT("[%i]"), CurrentIndex + 1
+				);
+				
+				// remove next point
+				Points.RemoveAt(CurrentIndex + 1);
+				
+				continue;
+			}
+		}
+		CurrentIndex++;
+	}
 }
