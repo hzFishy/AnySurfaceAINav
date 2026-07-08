@@ -441,14 +441,14 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 			
 			// TODO: maybe instead only filter FoundNewSurfaces to save loop time
 			// remove points that are to close with similar normal
-			RemoveSimilarPoints(
+			/*RemoveSimilarPoints(
 				World, 
 				AnySurfaceNavSettings, 
 				CollisionQueryParams, 
 				Request.AgentRadius, 
 				FillGapsFinalSurfaces, 
 				VLog::SmoothPassSimilarPointsFiltering
-			);
+			);*/
 			
 			// last filter: check if the agent can move between all the points
 			CheckAndClearUnusablePoints(
@@ -465,7 +465,7 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 			VLog::DebugSmoothLoopCount++;
 			
 			// FIXME:
-			if (VLog::DebugSmoothLoopCount > 5)
+			if (VLog::DebugSmoothLoopCount > 0)
 			{
 				break;
 			}
@@ -1337,6 +1337,7 @@ int32 USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurfac
 		{
 			FHitResult HitResult;
 			const FVector SbdvLocation = FMath::Lerp(StartSurface.HitLocation, EndSurface.HitLocation, (float)SubdivIndx/TotalNbOfSubdivisions);
+			// TODO: check if the point is INSIDE geomtry, if yes we need to place points outside
 			if (IsPointBlocked(World, Settings, CollisionQueryParams, AgentRadius, SbdvLocation, HitResult))
 			{
 				// we are colliding with a surface so it's a correct point for agent nav
@@ -1345,6 +1346,11 @@ int32 USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurfac
 			}
 			else
 			{
+				UE_VLOG_LOCATION(World, VLog::SmoothPass, Display, 
+					SbdvLocation + FVector(0, 0, 10), 0, 
+					RandDebugColor, TEXT("[%i]"), SubdivIndx
+				);
+				
 				// if nothing collides it means that the agent will be "floating" in the air which isnt wanted since we always want the agent to use surfaces
 				// so we trace "down" to find a in-between surface
 				
@@ -1352,11 +1358,47 @@ int32 USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurfac
 				
 				TArray<FSANSurfaceHitResult> BestSurfaceHits;
 				// set initial radius
-				float Radius = Settings->SurfaceCollisionSphereMinRadius;
+				// TODO: move to settings
+				float Radius = 50;
+				constexpr float MaxAxisDiff = 5;
 				
-				const FSANSurfaceHitResult& PreviousSurface = StartSurface;
-				if (GetBestSurface(World, Settings, CollisionQueryParams, SbdvLocation, Radius, PreviousSurface, BestSurfaceHits))
+				if (GetBestSurface(World, Settings, CollisionQueryParams, SbdvLocation, Radius, StartSurface, BestSurfaceHits))
 				{
+					UE_VLOG_WIRESPHERE(World, VLog::SmoothPass, Display, 
+						SbdvLocation, Radius, 
+						FColor::Orange, TEXT("[%i:%i]"), VLog::DebugSmoothLoopCount, SubdivIndx
+					);
+					
+					// clear points that have a big difference in more than 1 axis
+					
+					for (int32 HitIndx = BestSurfaceHits.Num() - 1; HitIndx >= 0; --HitIndx)
+					{
+						const auto& BestSurfaceHit = BestSurfaceHits[HitIndx];
+						
+						int32 AxisCountDiff = 0;
+						if (FMath::Abs(SbdvLocation.X - BestSurfaceHit.HitLocation.X) > MaxAxisDiff)
+						{
+							AxisCountDiff++;
+						}
+						if (FMath::Abs(SbdvLocation.Y - BestSurfaceHit.HitLocation.Y) > MaxAxisDiff)
+						{
+							AxisCountDiff++;
+						}
+						if (FMath::Abs(SbdvLocation.Z - BestSurfaceHit.HitLocation.Z) > MaxAxisDiff)
+						{
+							AxisCountDiff++;
+						}
+						
+						if (AxisCountDiff > 1)
+						{
+							UE_VLOG_SPHERE(World, VLog::SmoothPass, Display, 
+								BestSurfaceHit.HitLocation, 10, 
+								FColor::Black, TEXT_EMPTY
+							);
+							BestSurfaceHits.RemoveAt(HitIndx);
+						}
+					}
+					
 					// store the found surfaces and process them all afterwards since some found surfaces may not be between current start and end
 					OutNewSurfaces.Append(BestSurfaceHits);
 					OutNewSurfacesNum += BestSurfaceHits.Num();
@@ -1367,7 +1409,7 @@ int32 USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurfac
 						const auto& BestSurfaceHit = BestSurfaceHits[HitIndx];
 						
 						UE_VLOG_SPHERE(World, VLog::SmoothPass, Display, 
-							BestSurfaceHit.HitLocation, 20, 
+							BestSurfaceHit.HitLocation, 10, 
 							RandDebugColor, TEXT("[%i:%i:%i]"), VLog::DebugSmoothLoopCount, SubdivIndx, HitIndx
 						);
 					}
