@@ -463,6 +463,8 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 			
 #if ENABLE_VISUAL_LOG
 			VLog::DebugSmoothLoopCount++;
+			
+			// FIXME:
 			if (VLog::DebugSmoothLoopCount > 5)
 			{
 				break;
