@@ -20,7 +20,7 @@ public:
 	/** 
 	 * Collision Profile to use when tracing for surfaces.
 	 * This is used with a multi trace so the surfaces that should be taken into account needs to overlap.
-	 * Other surfaces shoulds be ignored.
+	 * Surfaces that aren't relevant should be set to Ignore in this profile.
 	 */
 	UPROPERTY(EditAnywhere, Config, Category="Collision")
 	FCollisionProfileName OverlapSurfaceCollisionProfile;
@@ -29,7 +29,7 @@ public:
 	 * Collision Profile to use when tracing for surfaces.
 	 * This is used after the multi trace to filter out surfaces that should block.
 	 * Surfaces that should be taken into account needs to block.
-	 * Other surfaces shoulds be ignored.
+	 * Surfaces that aren't relevant should be set to Ignore in this profile.
 	 * 
 	 * This is generally the same as OverlapSurfaceCollisionProfile but instead of overlapping it blocks.
 	 */

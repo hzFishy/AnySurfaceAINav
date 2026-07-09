@@ -107,6 +107,7 @@ void USANCrawlerMovementComponent::RequestPathFollowFromTo(const FVector& StartL
 	Request.StartLocation = StartLocation;
 	Request.EndLocation = EndLocation;
 	Request.AgentRadius = AgentRadiusOverride > 0 ? AgentRadiusOverride : AgentRadius;
+	Request.ActorsToIgnore.Emplace(GetOwner());
 	
 	RequestPathFollow(Request);
 }

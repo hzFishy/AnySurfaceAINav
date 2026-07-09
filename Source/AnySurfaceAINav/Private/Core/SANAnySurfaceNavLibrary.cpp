@@ -44,22 +44,21 @@ namespace SAN::Library
 		inline FName FillGapsShortPathFiltering = "SANFindAnySurfacePathSync_3.2_FillGapsShortPathFiltering";
 		inline FName SmoothPass = "SANFindAnySurfacePathSync_4_SmoothPass";
 		inline FName SmoothPass_BlockingTest = "SANFindAnySurfacePathSync_4_SmoothPass_BlockingTest";
+		inline FName SmoothPass_IsPointBlocked = "SANFindAnySurfacePathSync_4_SmoothPass_IsPointBlocked";
 		inline FName SmoothPassSimilarPointsFiltering = "SANFindAnySurfacePathSync_4.1_SmoothPassSimilarPointsFiltering";
 		inline FName SmoothPassBlockingFiltering = "SANFindAnySurfacePathSync_4.2_SmoothPassBlockingFiltering";
 		inline FName FinalPath = "SANFindAnySurfacePathSync_5_FinalPath";
 		
 		inline FName IsLineBlocking = "SANFindAnySurfacePathSync_IsLineBlocking";
-		inline FName IsPointBlocked = "SANFindAnySurfacePathSync_IsPointBlocked";
 		
+		static int32 FillGapsLoopCount = 0;
+#if SAN_WITH_DEBUG
+		static int32 FillGapsLoopCountDebug = 0;
 		static int32 DebugSmoothLoopCount = 0;
+#endif
 	}
 #endif
 }
-
-int32 USANAnySurfaceNavLibrary::FillGapsLoopCount = 0;
-#if SAN_WITH_DEBUG
-int32 USANAnySurfaceNavLibrary::FillGapsLoopCountDebug = 0;
-#endif
 
 
 bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest& Request, FSANFindPathResult& Result)
@@ -315,9 +314,9 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 		TArray<FSANSurfaceHitResult> BasePassSurfaceExtraPoints;
 		BasePassSurfaceExtraPoints.Reserve(20);
 		
-		FillGapsLoopCount = 0;
+		VLog::FillGapsLoopCount = 0;
 #if SAN_WITH_DEBUG
-		FillGapsLoopCountDebug = -1;
+		VLog::FillGapsLoopCountDebug = -1;
 #endif
 		
 		TRACE_CPUPROFILER_EVENT_SCOPE(SAN::FillGapsFiltering)
@@ -465,7 +464,7 @@ bool USANAnySurfaceNavLibrary::FindAnySurfacePathSync(const FSANFindPathRequest&
 			VLog::DebugSmoothLoopCount++;
 			
 			// FIXME:
-			if (VLog::DebugSmoothLoopCount > 0)
+			if (VLog::DebugSmoothLoopCount > 1)
 			{
 				break;
 			}
@@ -521,6 +520,41 @@ bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfac
 	// trace until we find a surface
 	// TODO: from previous used radius use that as base to avoid repititive traces to find similar radius
 	const bool bFoundSurface = GetBestSurfaceInternal(World, Settings, CollisionQueryParams, PointLocation, Radius, HitResults);
+	
+	auto ConvertHitImpl = 
+		[World, PointLocation, ProfileName = Settings->BlockSurfaceCollisionProfile.Name, &CollisionQueryParams, Radius]
+		(const FHitResult& HitResult) -> FSANSurfaceHitResult
+	{
+		// if there is an initial penetration, we need to check if its blocking the real point or only a little because of the sphere radius size
+		if (HitResult.bStartPenetrating)
+		{
+			UE_VLOG_WIRESPHERE(World, "TestPenetration", Display, HitResult.Location, Radius, FColor::Black, TEXT("%s"), *FU::Utils::GetObjectDetailedName(HitResult.GetComponent()));
+			UE_VLOG_WIRESPHERE(World, "TestPenetration", Display, HitResult.ImpactPoint + ((HitResult.ImpactNormal * -1) * HitResult.PenetrationDepth), Radius, FColor::White, TEXT("%s"), *FU::Utils::GetObjectDetailedName(HitResult.GetComponent()));
+			UE_VLOG_WIRESPHERE(World, "TestPenetration", Display, HitResult.ImpactPoint, 5, FColor::Red, TEXT("%s"), *FU::Utils::GetObjectDetailedName(HitResult.GetComponent()));
+			
+			FHitResult PenetrationHitTest;
+			World->SweepSingleByProfile(
+				PenetrationHitTest,
+				PointLocation,
+				PointLocation,
+				FQuat::Identity,
+				ProfileName,
+				FCollisionShape::MakeSphere(10),
+				CollisionQueryParams
+			);
+			
+			UE_VLOG_WIRESPHERE(World, "AAAAAAA", Display, PointLocation, 2, PenetrationHitTest.bStartPenetrating ? FColor::Yellow : FColor::Magenta, TEXT_EMPTY);
+			
+			// FIXME: sweeping inside geomtry doesnt return as hit or start penetration ??
+			if (PenetrationHitTest.bStartPenetrating)
+			{
+				return FSANSurfaceHitResult(HitResult.ImpactPoint, HitResult.ImpactNormal * -1);
+			}
+		}
+		
+		
+		return FSANSurfaceHitResult(HitResult);
+	};
 	
 	if (bFoundSurface && !HitResults.IsEmpty())
 	{
@@ -597,13 +631,13 @@ bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfac
 					}
 				}
 				
-				OutBestSurfaces[0] = FSANSurfaceHitResult(HitResults[BestScoreIndex]);
+				OutBestSurfaces[0] = ConvertHitImpl(HitResults[BestScoreIndex]);
 				
 				// TODO: if normals are to different, two points can be taken
 				for (int32 i = 0; i < ExtraDiffSurfaces.Num(); ++i)
 				{
 					// TODO: to avoid repetitive loops just fix above code so we never have to check for uniqueness
-					OutBestSurfaces.AddUnique(HitResults[ExtraDiffSurfaces[i]]);
+					OutBestSurfaces.AddUnique(ConvertHitImpl(HitResults[ExtraDiffSurfaces[i]]));
 				}
 				
 				// sort the out surfaces so we order from closest to furthest from the best previous location
@@ -614,13 +648,13 @@ bool USANAnySurfaceNavLibrary::GetBestSurface(UWorld* World, const USANAnySurfac
 			}
 			else
 			{
-				OutBestSurfaces[0] = FSANSurfaceHitResult(HitResults[0]);
+				OutBestSurfaces[0] = ConvertHitImpl(HitResults[0]);
 			}
 		}
 		else
 		{
 			// TODO: might have to still run the "multiple out surfaces" code even if we are the first point
-			OutBestSurfaces[0] = FSANSurfaceHitResult(HitResults[0]);
+			OutBestSurfaces[0] = ConvertHitImpl(HitResults[0]);
 		}
 	}
 	
@@ -1060,7 +1094,7 @@ bool USANAnySurfaceNavLibrary::IsLineBlocking(UWorld* World, const USANAnySurfac
 }
 
 bool USANAnySurfaceNavLibrary::IsPointBlocked(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, 
-	const FVector& PointLocation, FHitResult& OutHitResult)
+	const FVector& PointLocation, FHitResult& OutHitResult, const FName VLogName)
 {
 	FHitResult Result;
 	
@@ -1072,7 +1106,7 @@ bool USANAnySurfaceNavLibrary::IsPointBlocked(UWorld* World, const USANAnySurfac
 		CollisionQueryParams
 	);
 	
-	UE_VLOG_SPHERE(World, SAN::Library::VLog::IsPointBlocked, VeryVerbose, 
+	UE_VLOG_SPHERE(World, VLogName, VeryVerbose, 
 		PointLocation, AgentRadius, 
 		bHit ? FColor::Red : FColor::Green, TEXT_EMPTY
 	);
@@ -1084,9 +1118,9 @@ bool USANAnySurfaceNavLibrary::FillGaps(UWorld* World, const USANAnySurfaceNavSe
 {
 	using namespace SAN::Library;
 	
-	FillGapsLoopCount++;
+	VLog::FillGapsLoopCount++;
 	
-	if (FillGapsLoopCount > Settings->MaxFillGapsLoopCount)
+	if (VLog::FillGapsLoopCount > Settings->MaxFillGapsLoopCount)
 	{
 		return true;
 	}
@@ -1148,7 +1182,7 @@ bool USANAnySurfaceNavLibrary::FillGaps(UWorld* World, const USANAnySurfaceNavSe
 				}
 				
 #if SAN_WITH_DEBUG
-				FillGapsLoopCountDebug++;
+				VLog::FillGapsLoopCountDebug++;
 #endif
 				
 				bDidChanged = true;
@@ -1167,7 +1201,7 @@ bool USANAnySurfaceNavLibrary::FillGaps(UWorld* World, const USANAnySurfaceNavSe
 				UE_VLOG_LOCATION(World, VLog::FillGaps, Display, 
 					((StartLoc + EndLoc) / 2) + FVector(0, 0, 60), 0, 
 					RandomColor, TEXT("Subdivs [%i, %i] Count: %i"), 
-					FillGapsLoopCountDebug, FillGapsLoopCount - 1, NbOfSubdivisions
+					VLog::FillGapsLoopCountDebug, VLog::FillGapsLoopCount - 1, NbOfSubdivisions
 				);
 #endif
 				
@@ -1193,7 +1227,7 @@ bool USANAnySurfaceNavLibrary::FillGaps(UWorld* World, const USANAnySurfaceNavSe
 						UE_VLOG_LOCATION(World, VLog::FillGaps, Display, 
 							PreviousSurface.HitLocation + FVector(0, 0, 30), 0, 
 							RandomColor, TEXT("Subdiv PreviousSurface [%i, %i:%i]"), 
-							FillGapsLoopCountDebug, FillGapsLoopCount - 1, SbdvIndx - 1
+							VLog::FillGapsLoopCountDebug, VLog::FillGapsLoopCount - 1, SbdvIndx - 1
 						);
 #endif
 						
@@ -1213,7 +1247,7 @@ bool USANAnySurfaceNavLibrary::FillGaps(UWorld* World, const USANAnySurfaceNavSe
 							UE_VLOG_LOCATION(World, VLog::FillGaps, Display, 
 								BestSurfaceHits[InnerSurfaceHitIndx].HitLocation, DebugSphereSize, 
 								RandomColor, TEXT("Subdiv [%i, %i:%i(%i)] \nN: %s"), 
-								FillGapsLoopCountDebug, FillGapsLoopCount - 1, SbdvIndx - 1, InnerSurfaceHitIndx, 
+								VLog::FillGapsLoopCountDebug, VLog::FillGapsLoopCount - 1, SbdvIndx - 1, InnerSurfaceHitIndx, 
 								*FU::Utils::PrintCompactVector(BestSurfaceHits[InnerSurfaceHitIndx].HitNormal)
 							);
 #endif			
@@ -1290,17 +1324,17 @@ int32 USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurfac
 	const int32 NbOfSubdivisions = TotalNbOfSubdivisions - 1;
 	
 #if ENABLE_VISUAL_LOG
-	const FColor RandDebugColor = FU::Colors::PickRandomColor();
+	const FColor RandomDebugColor = FU::Colors::PickRandomColor();
 #endif
 	
 	if (NbOfSubdivisions > 0)
 	{
 		// we cannot subdive between 2 points if there is a blocking collision so we first check for that
-		FHitResult BlockingResult;
 		
 		const FVector BlockingStartLoc = StartSurface.HitLocation + (StartSurface.HitNormal * (AgentRadius + 5) );
 		const FVector BlockingEndLoc = EndSurface.HitLocation + (EndSurface.HitNormal * (AgentRadius + 5));
 		
+		FHitResult BlockingResult;
 		const bool bHit = World->SweepSingleByProfile(
 			BlockingResult, 
 			BlockingStartLoc, BlockingEndLoc, FQuat::Identity, 
@@ -1321,34 +1355,30 @@ int32 USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurfac
 		UE_VLOG_WIRESPHERE(World, VLog::SmoothPass_BlockingTest, Display, BlockingStartLoc, AgentRadius, DebugHitColor, TEXT_EMPTY);
 		UE_VLOG_WIRESPHERE(World, VLog::SmoothPass_BlockingTest, Display, BlockingEndLoc, AgentRadius, DebugHitColor, TEXT_EMPTY);
 		
-		// there is a blocking collision, end here
-		if (bHit)
-		{
-			return 0;
-		}
-		
 		UE_VLOG_SEGMENT_THICK(World, VLog::SmoothPass, Display, 
 			StartSurface.HitLocation, EndSurface.HitLocation, 
-			RandDebugColor, 10, TEXT("[%i] Subdivs: %i"), VLog::DebugSmoothLoopCount, NbOfSubdivisions
+			RandomDebugColor, 10, TEXT("[%i] Subdivs: %i"), VLog::DebugSmoothLoopCount, NbOfSubdivisions
 		);
 		
 		// for each subdivision see if we are hitting a surface
 		for (int32 SubdivIndx = 1; SubdivIndx < NbOfSubdivisions + 1; ++SubdivIndx)
 		{
-			FHitResult HitResult;
 			const FVector SbdvLocation = FMath::Lerp(StartSurface.HitLocation, EndSurface.HitLocation, (float)SubdivIndx/TotalNbOfSubdivisions);
-			// TODO: check if the point is INSIDE geomtry, if yes we need to place points outside
-			if (IsPointBlocked(World, Settings, CollisionQueryParams, AgentRadius, SbdvLocation, HitResult))
+			FHitResult HitResult;
+			// TODO: move to settings
+			// very small value since we have to be sure we are not "floating"
+			constexpr float TestRadius = 5;
+			if (IsPointBlocked(World, Settings, CollisionQueryParams, TestRadius, SbdvLocation, HitResult, VLog::SmoothPass_IsPointBlocked))
 			{
-				// we are colliding with a surface so it's a correct point for agent nav
-				
 				// TODO: maybe snap nearby point to hit surface
+				
+				// we are colliding with a surface that isnt penetrated so it's a correct point for agent nav
 			}
 			else
 			{
 				UE_VLOG_LOCATION(World, VLog::SmoothPass, Display, 
 					SbdvLocation + FVector(0, 0, 10), 0, 
-					RandDebugColor, TEXT("[%i]"), SubdivIndx
+					RandomDebugColor, TEXT("[%i]"), SubdivIndx
 				);
 				
 				// if nothing collides it means that the agent will be "floating" in the air which isnt wanted since we always want the agent to use surfaces
@@ -1356,12 +1386,13 @@ int32 USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurfac
 				
 				// TODO: allow the agent to "jump" between gaps
 				
-				TArray<FSANSurfaceHitResult> BestSurfaceHits;
 				// set initial radius
 				// TODO: move to settings
 				float Radius = 50;
-				constexpr float MaxAxisDiff = 5;
+				// TODO: move to settings
+				//constexpr float MaxAxisDiff = 5;
 				
+				TArray<FSANSurfaceHitResult> BestSurfaceHits;
 				if (GetBestSurface(World, Settings, CollisionQueryParams, SbdvLocation, Radius, StartSurface, BestSurfaceHits))
 				{
 					UE_VLOG_WIRESPHERE(World, VLog::SmoothPass, Display, 
@@ -1370,21 +1401,27 @@ int32 USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurfac
 					);
 					
 					// clear points that have a big difference in more than 1 axis
-					
-					for (int32 HitIndx = BestSurfaceHits.Num() - 1; HitIndx >= 0; --HitIndx)
+					// TODO: do we really want this ? maybe update how GetBestSurface works
+					/*for (int32 HitIndx = BestSurfaceHits.Num() - 1; HitIndx >= 0; --HitIndx)
 					{
 						const auto& BestSurfaceHit = BestSurfaceHits[HitIndx];
 						
 						int32 AxisCountDiff = 0;
-						if (FMath::Abs(SbdvLocation.X - BestSurfaceHit.HitLocation.X) > MaxAxisDiff)
+						const float XDiff = FMath::Abs(SbdvLocation.X - BestSurfaceHit.HitLocation.X);
+						if (XDiff > MaxAxisDiff)
 						{
 							AxisCountDiff++;
 						}
-						if (FMath::Abs(SbdvLocation.Y - BestSurfaceHit.HitLocation.Y) > MaxAxisDiff)
+						
+						
+						const float YDiff = FMath::Abs(SbdvLocation.Y - BestSurfaceHit.HitLocation.Y);
+						if (YDiff > MaxAxisDiff)
 						{
 							AxisCountDiff++;
 						}
-						if (FMath::Abs(SbdvLocation.Z - BestSurfaceHit.HitLocation.Z) > MaxAxisDiff)
+						
+						const float ZDiff = FMath::Abs(SbdvLocation.Z - BestSurfaceHit.HitLocation.Z);
+						if (ZDiff > MaxAxisDiff)
 						{
 							AxisCountDiff++;
 						}
@@ -1393,11 +1430,11 @@ int32 USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurfac
 						{
 							UE_VLOG_SPHERE(World, VLog::SmoothPass, Display, 
 								BestSurfaceHit.HitLocation, 10, 
-								FColor::Black, TEXT_EMPTY
+								FColor::Black, TEXT("(%.0f,%.0f,%.0f)"), XDiff, YDiff, ZDiff
 							);
 							BestSurfaceHits.RemoveAt(HitIndx);
 						}
-					}
+					}*/
 					
 					// store the found surfaces and process them all afterwards since some found surfaces may not be between current start and end
 					OutNewSurfaces.Append(BestSurfaceHits);
@@ -1410,20 +1447,19 @@ int32 USANAnySurfaceNavLibrary::SmoothSegment(UWorld* World, const USANAnySurfac
 						
 						UE_VLOG_SPHERE(World, VLog::SmoothPass, Display, 
 							BestSurfaceHit.HitLocation, 10, 
-							RandDebugColor, TEXT("[%i:%i:%i]"), VLog::DebugSmoothLoopCount, SubdivIndx, HitIndx
+							RandomDebugColor, TEXT("[%i:%i:%i]"), VLog::DebugSmoothLoopCount, SubdivIndx, HitIndx
+						);
+						
+						UE_VLOG_ARROW(World, VLog::SmoothPass, Display, 
+							BestSurfaceHit.HitLocation,
+							BestSurfaceHit.HitLocation + BestSurfaceHit.HitNormal * 50, 
+							RandomDebugColor, TEXT_EMPTY
 						);
 					}
 #endif
 				}
 			}
 		}
-	}
-	else
-	{
-		UE_VLOG_SEGMENT_THICK(World, VLog::SmoothPass, Display, 
-			StartSurface.HitLocation, EndSurface.HitLocation, 
-			RandDebugColor, 5, TEXT("Cannot subdiv")
-		);
 	}
 	
 	return OutNewSurfacesNum;
@@ -1455,11 +1491,11 @@ void USANAnySurfaceNavLibrary::CheckAndClearUnusablePoints(UWorld* World, const 
 			Surface.HitLocation, AgentRadius, FColor::Green, TEXT("[%i]"), CurrentIndex
 		);
 		
-		FHitResult BlockingResult;
 		
 		const FVector BlockingStartLoc = Surface.HitLocation + (Surface.HitNormal * (AgentRadius + 5) );
 		const FVector BlockingEndLoc = NextSurface.HitLocation + (NextSurface.HitNormal * (AgentRadius + 5));
 		
+		FHitResult BlockingResult;
 		const bool bHit = World->SweepSingleByProfile(
 			BlockingResult, 
 			BlockingStartLoc, BlockingEndLoc, FQuat::Identity, 

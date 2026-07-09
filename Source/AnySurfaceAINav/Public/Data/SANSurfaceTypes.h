@@ -13,6 +13,8 @@ struct ANYSURFACEAINAV_API FSANSurfaceHitResult
 	
 	FSANSurfaceHitResult(const FHitResult& HitResult);
 	
+	FSANSurfaceHitResult(const FVector& HitLocation, const FVector& HitNormal);
+	
 	bool operator==(const FSANSurfaceHitResult& Other) const;
 	
 	UPROPERTY(BlueprintReadOnly)

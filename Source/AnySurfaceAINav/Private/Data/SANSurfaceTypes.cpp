@@ -14,6 +14,11 @@ FSANSurfaceHitResult::FSANSurfaceHitResult(const FHitResult& HitResult):
 	HitNormal(HitResult.ImpactNormal)
 {}
 
+FSANSurfaceHitResult::FSANSurfaceHitResult(const FVector& HitLocation, const FVector& HitNormal):
+	HitLocation(HitLocation),
+	HitNormal(HitNormal)
+{}
+
 bool FSANSurfaceHitResult::operator==(const FSANSurfaceHitResult& Other) const
 {
 	return HitLocation.Equals(Other.HitLocation, 1) && HitNormal.Equals(Other.HitNormal, 1);

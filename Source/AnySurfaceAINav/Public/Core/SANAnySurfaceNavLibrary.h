@@ -21,12 +21,6 @@ public:
 	UFUNCTION(BlueprintPure, Category="SAN")
 	static bool IsPathResultEmpty(const FSANFindPathResult& PathResult);
 	
-protected:
-	static int32 FillGapsLoopCount;
-#if SAN_WITH_DEBUG
-	static int32 FillGapsLoopCountDebug;
-#endif
-	
 	static bool GetBestSurface(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, const FVector PointLocation, float& Radius, const FSANSurfaceHitResult& PreviousSurface, TArray<FSANSurfaceHitResult>& OutBestSurfaces);
 	
 	static bool GetBestSurfaceInternal(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, const FVector PointLocation, float& Radius, TArray<FHitResult>& HitResults);
@@ -49,7 +43,7 @@ protected:
 	 *  
 	 *  @returns true if we hit something
 	 */
-	static bool IsPointBlocked(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, const FVector& PointLocation, FHitResult& OutHitResult);
+	static bool IsPointBlocked(UWorld* World, const USANAnySurfaceNavSettings* Settings, const FCollisionQueryParams& CollisionQueryParams, float AgentRadius, const FVector& PointLocation, FHitResult& OutHitResult, const FName VLogName);
 	
 	/** 
 	 *  Add extra surfaces between given points, recursive.
